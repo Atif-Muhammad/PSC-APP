@@ -214,18 +214,16 @@ const shoots = ({ navigation }) => {
     showsPagination
     activeDotColor="#A3834C"
   >
+    {photoshoots?.[0]?.images?.length > 0 &&
+  photoshoots[0].images.map((image, index) => (
     <Image
-      source={require('../assets/psc_home.jpeg')}
+      key={index}
+      source={{ uri: image.url }}
       style={styles.sliderImage}
     />
-    <Image
-      source={require('../assets/psc2.jpeg')}
-      style={styles.sliderImage}
-    />
-    <Image
-      source={require('../assets/psc3.jpeg')}
-      style={styles.sliderImage}
-    />
+  ))}
+
+    
   </Swiper>
 </View>
 
@@ -241,7 +239,7 @@ const shoots = ({ navigation }) => {
 
         {photoshoots.length > 0 ? (
           <View style={styles.packagesSection}>
-            <Text style={styles.sectionTitle}>Available Packages</Text>
+            {/* <Text style={styles.sectionTitle}>Available Packages</Text> */}
 
             {photoshoots.map((photoshoot, index) => (
               <PhotoshootCard

@@ -244,14 +244,14 @@ const BH = ({ navigation }) => {
             {hall.name}
           </Text>
 
-          <Text style={styles.hallDescription} numberOfLines={2}>
+          {/* <Text style={styles.hallDescription} numberOfLines={2}>
             {hall.description}
-          </Text>
+          </Text> */}
 
           {/* Capacity */}
           <View style={styles.capacityRow}>
             <Icon name="account-group" size={16} color="#b48a64" />
-            <Text style={styles.capacityText}>Capacity: {hall.capacity} guests</Text>
+            <Text style={styles.capacityText}>Capacity: {hall.capacity}</Text>
           </View>
 
           {/* Pricing */}
@@ -348,7 +348,7 @@ const BH = ({ navigation }) => {
     return (
       <>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Available Halls</Text>
+          <Text style={styles.sectionTitle}>Hall Categories</Text>
           {/* <Text style={styles.sectionSubtitle}>
             {halls.length} hall{halls.length !== 1 ? 's' : ''} available
           </Text> */}

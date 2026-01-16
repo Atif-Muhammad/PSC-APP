@@ -222,16 +222,6 @@ function MemberDrawer() {
         }}
       />
       <Drawer.Screen
-        name="Contact us"
-        component={contact}
-        options={{
-          headerShown: false,
-          drawerIcon: ({ color, size }) => (
-            <Icon name="call-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Drawer.Screen
         name="Club rules"
         component={ClubRulesScreen}
         options={{
@@ -248,6 +238,16 @@ function MemberDrawer() {
           headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="calendar-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Contact us"
+        component={contact}
+        options={{
+          headerShown: false,
+          drawerIcon: ({ color, size }) => (
+            <Icon name="call-outline" size={size} color={color} />
           ),
         }}
       />
@@ -327,16 +327,6 @@ function AdminDrawer() {
           ),
         }}
       />
-      <Drawer.Screen
-        name="Contact us"
-        component={contact}
-        options={{
-          headerShown: false,
-          drawerIcon: ({ color, size }) => (
-            <Icon name="call-outline" size={size} color={color} />
-          ),
-        }}
-      />
       {/* <Drawer.Screen
         name="Announcements"
         component={events}
@@ -384,6 +374,16 @@ function AdminDrawer() {
           headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Icon name="briefcase-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Contact us"
+        component={contact}
+        options={{
+          headerShown: false,
+          drawerIcon: ({ color, size }) => (
+            <Icon name="call-outline" size={size} color={color} />
           ),
         }}
       />

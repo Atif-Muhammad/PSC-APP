@@ -2524,14 +2524,14 @@ const BHBooking = ({ route, navigation }) => {
           <Text style={styles.venueDescription}>{venue.description}</Text>
           <View style={styles.venueStats}>
             <Text style={styles.venueStat}>Capacity: {venue.capacity} people</Text>
-            <View style={styles.priceComparison}>
+            {/* <View style={styles.priceComparison}>
               <Text style={styles.memberPriceText}>
                 Member Price: Rs. {memberPrice.toLocaleString()}/-
               </Text>
               <Text style={styles.guestPriceText}>
                 Guest Price: Rs. {guestPrice.toLocaleString()}/-
               </Text>
-            </View>
+            </View> */}
           </View>
         </View>
       </View>

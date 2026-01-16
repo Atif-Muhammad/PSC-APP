@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/Feather';
+import Icon2 from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -52,47 +53,29 @@ const getMockDashboardStats = async () => {
 
 const Header = ({ authStatus, handleRetry, shouldUseMock, onToggleMock }) => {
   const adminName = authStatus?.userData?.name || 'Admin';
+  const navigation = useNavigation();
 
   return (
     <View style={styles.headerContainer}>
-      <ImageBackground
-        source={require('../../assets/notch.jpg')}
-        style={styles.notch}
-        imageStyle={styles.notchImage}
-      >
-        <SafeAreaView style={styles.notchSafeArea}>
-          <View style={styles.headerContent}>
-            <View style={styles.headerTopRow}>
-              <View>
-                <Text style={styles.greetingText}>Welcome back,</Text>
-                <Text style={styles.adminNameText}>{adminName}</Text>
-              </View>
-              <View style={styles.headerActions}>
-                <TouchableOpacity onPress={handleRetry} style={styles.iconButton}>
-                  <Icon name="refresh-cw" size={20} color="#334155" />
+       <ImageBackground
+              source={require('../../assets/notch.jpg')}
+              style={styles.notch}
+              imageStyle={styles.notchImage}
+            >
+              <View style={styles.notchContent}>
+                <TouchableOpacity
+                  style={styles.backButtonNotch}
+                  onPress={() => navigation.goBack()}
+                  activeOpacity={0.7}
+                >
+                  <Icon2 name="arrow-back" size={28} color="#000" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={onToggleMock} style={styles.iconButton}>
-                  <Icon name="more-vertical" size={20} color="#334155" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.headerStatusRow}>
-              <View style={styles.statusBadge}>
-                <View style={[styles.statusDot, { backgroundColor: authStatus?.isAuthenticated ? '#10B981' : '#F59E0B' }]} />
-                <Text style={styles.statusText}>
-                  {authStatus?.isAuthenticated ? 'Systems Online' : 'Reviewing Offline'}
-                </Text>
-              </View>
-              {shouldUseMock && (
-                <View style={styles.mockBadge}>
-                  <Text style={styles.mockBadgeText}>DEMO MODE</Text>
+                <View style={styles.headerTitleContainer}>
+                  <Text style={styles.headerTitleNotch}>Dashboard</Text>
                 </View>
-              )}
-            </View>
-          </View>
-        </SafeAreaView>
-      </ImageBackground>
+                <View style={{ width: 40 }} />
+              </View>
+            </ImageBackground>
     </View>
   );
 };
@@ -352,17 +335,44 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   notch: {
-    paddingTop: 20,
-    paddingBottom: 30,
-    borderBottomEndRadius: 40,
-    borderBottomStartRadius: 40,
+    paddingTop: 45,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomEndRadius: 30,
+    borderBottomStartRadius: 30,
     overflow: 'hidden',
+    minHeight: 120,
   },
   notchImage: {
     resizeMode: 'cover',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
-  notchSafeArea: {
-    paddingHorizontal: 24,
+  notchContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  backButtonNotch: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleNotch: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
   },
   headerContent: {
     marginTop: 0,

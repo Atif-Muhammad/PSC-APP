@@ -2593,7 +2593,7 @@ const Bills = ({ navigation }) => {
             </View>
 
             {/* Payment Modes Section */}
-            <View style={styles.paymentModesSection}>
+            {/* <View style={styles.paymentModesSection}>
               <Text style={styles.paymentModesTitle}>
                 PAYMENT <Text style={styles.paymentModesTitleGold}>MODES</Text>
               </Text>
@@ -2625,7 +2625,7 @@ const Bills = ({ navigation }) => {
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+            </View> */}
 
             {/* Important Notice Section */}
             <View style={styles.section}>

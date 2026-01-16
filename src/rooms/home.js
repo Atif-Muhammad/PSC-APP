@@ -178,20 +178,20 @@ export default function home({ navigation }) {
           welcomeMessage = `Welcome ${userName || 'User'}!`;
       }
 
-      const timer = setTimeout(() => {
-        Alert.alert(
-          alertTitle,
-          welcomeMessage,
-          [
-            {
-              text: 'Get Started',
-              onPress: () => setShowWelcome(false)
-            }
-          ]
-        );
-      }, 500);
+      // const timer = setTimeout(() => {
+        // Alert.alert(
+        //   alertTitle,
+        //   welcomeMessage,
+        //   [
+        //     {
+        //       text: 'Get Started',
+        //       onPress: () => setShowWelcome(false)
+        //     }
+        //   ]
+        // );
+      // }, 500);
 
-      return () => clearTimeout(timer);
+      // return () => clearTimeout(timer);
     }
   }, [userRole, userName, showWelcome, isAuthenticated]);
 
@@ -344,28 +344,28 @@ export default function home({ navigation }) {
       );
     }
 
-    if (roomTypes.length === 0) {
-      return (
-        <View style={styles.noDataContainer}>
-          <Icon name="image-off-outline" size={50} color="#999" />
-          <Text style={styles.noDataText}>No room types available</Text>
-          <Text style={styles.noDataSubtext}>
-            Room types will appear here once added
-          </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchRoomTypes}>
-            <Text style={styles.retryText}>Refresh</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+    // if (roomTypes.length === 0) {
+    //   return (
+    //     <View style={styles.noDataContainer}>
+    //       <Icon name="image-off-outline" size={50} color="#999" />
+    //       <Text style={styles.noDataText}>No room types available</Text>
+    //       <Text style={styles.noDataSubtext}>
+    //         Room types will appear here once added
+    //       </Text>
+    //       <TouchableOpacity style={styles.retryButton} onPress={fetchRoomTypes}>
+    //         <Text style={styles.retryText}>Refresh</Text>
+    //       </TouchableOpacity>
+    //     </View>
+    //   );
+    // }
 
     return (
       <>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Available Room Types</Text>
-          <Text style={styles.sectionSubtitle}>
+          <Text style={styles.sectionTitle}>Room Categories</Text>
+          {/* <Text style={styles.sectionSubtitle}>
             {roomTypes.length} type{roomTypes.length !== 1 ? 's' : ''} available
-          </Text>
+          </Text> */}
         </View>
 
         <ScrollView

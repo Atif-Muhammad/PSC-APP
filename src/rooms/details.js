@@ -11961,7 +11961,7 @@ export default function details({ navigation, route }) {
     // Room-specific features data
     const roomFeatures = {
         'Suite': {
-            description: 'Suite room comprise of:',
+            // description: 'Suite room comprise of:',
             features: [
                 'Single room',
                 'Double bed',
@@ -11974,7 +11974,7 @@ export default function details({ navigation, route }) {
             ],
         },
         'Deluxe': {
-            description: 'Deluxe room comprise of:',
+            // description: 'Deluxe room comprise of:',
             features: [
                 'Single room',
                 'Double bed',
@@ -11987,7 +11987,7 @@ export default function details({ navigation, route }) {
             ],
         },
         'Studio': {
-            description: 'Studio room comprise of:',
+            // description: 'Studio room comprise of:',
             features: [
                 'Single room',
                 'Two single beds',
@@ -12034,7 +12034,7 @@ export default function details({ navigation, route }) {
         return (
             <View style={styles.featuresSection}>
                 <Text style={styles.featuresSectionTitle}>Features</Text>
-                <Text style={styles.featuresDescription}>{features.description}</Text>
+                {/* <Text style={styles.featuresDescription}>{features.description}</Text> */}
                 <View style={styles.featuresList}>
                     {features.features.map((feature, index) => (
                         <View key={index} style={styles.featureItem}>
