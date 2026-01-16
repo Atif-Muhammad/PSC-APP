@@ -179,16 +179,16 @@ export default function home({ navigation }) {
       }
 
       // const timer = setTimeout(() => {
-        // Alert.alert(
-        //   alertTitle,
-        //   welcomeMessage,
-        //   [
-        //     {
-        //       text: 'Get Started',
-        //       onPress: () => setShowWelcome(false)
-        //     }
-        //   ]
-        // );
+      // Alert.alert(
+      //   alertTitle,
+      //   welcomeMessage,
+      //   [
+      //     {
+      //       text: 'Get Started',
+      //       onPress: () => setShowWelcome(false)
+      //     }
+      //   ]
+      // );
       // }, 500);
 
       // return () => clearTimeout(timer);
@@ -581,13 +581,14 @@ const styles = StyleSheet.create({
   headerInfo: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     color: "#000",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 4,
   },
+
   roleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -611,15 +612,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerInfo: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    color: "black",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 2,
-  },
+
   roleContainer: {
     flexDirection: 'row',
     alignItems: 'center',

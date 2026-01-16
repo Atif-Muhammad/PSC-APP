@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: '#000',
     zIndex: 5,

@@ -42,58 +42,58 @@ const About = () => {
   const getAboutPreview = (htmlContent) => {
     if (!htmlContent) {
       const defaultText = `Established in 1863 as the "Games Club", the Peshawar Services Club (PSC) has undergone various transformations, from being the HQ for the Vale Hunt Club in 1870 to "Peshawar Club" in 1899. Since 1947, its name changed multiple times until settling on "Peshawar Services Club" in 2011. Spanning acres of land, PSC offers its members a place for socializing, various amenities, including indoor and outdoor sports facilities, dining areas, and elegant accommodations.`;
-      return { 
-        preview: defaultText, 
+      return {
+        preview: defaultText,
         fullContent: defaultText,
-        hasMore: false 
+        hasMore: false
       };
     }
-    
+
     // Remove HTML tags and get plain text
     const plainText = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
-    
+
     // Split into sentences (simple approach)
     const sentences = plainText.split(/(?<=[.!?])\s+/);
-    
+
     if (sentences.length <= 2) {
-      return { 
-        preview: htmlContent, 
+      return {
+        preview: htmlContent,
         fullContent: htmlContent,
-        hasMore: false 
+        hasMore: false
       };
     }
-    
+
     // First 2 sentences as preview
     const previewSentences = sentences.slice(0, 2);
     let previewText = previewSentences.join(' ');
-    
+
     // Ensure preview ends with proper punctuation
     if (!/[.!?]$/.test(previewText)) {
       previewText += '...';
     } else {
       previewText = previewText.replace(/[.!?]$/, '...');
     }
-    
-    return { 
-      preview: previewText, 
+
+    return {
+      preview: previewText,
       fullContent: htmlContent,
-      hasMore: true 
+      hasMore: true
     };
   };
 
   const fetchData = async () => {
     try {
       setError(null);
-      
+
       // Fetch both About Us and History in parallel
       const [aboutData, historyData] = await Promise.all([
         getAboutUs(),
         getClubHistory()
       ]);
-      
+
       setAboutUs(aboutData);
       setHistory(historyData);
-      
+
       // Animate content
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -109,7 +109,7 @@ const About = () => {
           easing: Easing.out(Easing.cubic)
         })
       ]).start();
-      
+
     } catch (err) {
       setError(err.message || 'Failed to fetch data');
       console.error('Fetch data error:', err);
@@ -215,7 +215,7 @@ const About = () => {
             )}
 
             {/* About Us Section - Club Info */}
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.section,
                 {
@@ -230,28 +230,28 @@ const About = () => {
                   textStyle={styles.contentText}
                   maxLines={showAllAbout ? undefined : 6}
                 />
-                
+
                 {/* View More Button */}
                 {aboutContent.hasMore && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => setShowAllAbout(!showAllAbout)}
                     style={styles.viewMoreButton}
                   >
                     <Text style={styles.viewMoreText}>
                       {showAllAbout ? 'View Less' : 'View More'}
                     </Text>
-                    <Icon 
-                      name={showAllAbout ? 'expand-less' : 'expand-more'} 
-                      size={20} 
-                      color="#A3834C" 
+                    <Icon
+                      name={showAllAbout ? 'expand-less' : 'expand-more'}
+                      size={20}
+                      color="#A3834C"
                     />
                   </TouchableOpacity>
                 )}
 
-          
+
               </View>
 
-          
+
             </Animated.View>
 
             {/* Divider - From second code styling */}
@@ -262,7 +262,7 @@ const About = () => {
             </View>
 
             {/* Club History Section */}
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.section,
                 {
@@ -277,7 +277,7 @@ const About = () => {
                   {visibleHistory.map((item, index) => (
                     <View style={styles.imageCard} key={item.id || index}>
                       {item.image && (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                           onPress={() => openImageViewer(item.image)}
                           activeOpacity={0.9}
                         >
@@ -288,31 +288,31 @@ const About = () => {
                           />
                         </TouchableOpacity>
                       )}
-                      
+
                       <View style={styles.historyTextContainer}>
-                        <HtmlRenderer 
+                        <HtmlRenderer
                           htmlContent={item.description}
                           textStyle={styles.captionText}
                         />
                       </View>
-                      
-                    
+
+
                     </View>
                   ))}
 
                   {/* Show More/Less Button for History */}
                   {history.length > 4 && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.showMoreButton}
                       onPress={() => setShowAllHistory(!showAllHistory)}
                     >
                       <Text style={styles.showMoreText}>
                         {showAllHistory ? 'Show Less' : `Show All (${history.length} items)`}
                       </Text>
-                      <Icon 
-                        name={showAllHistory ? 'expand-less' : 'expand-more'} 
-                        size={20} 
-                        color="#A3834C" 
+                      <Icon
+                        name={showAllHistory ? 'expand-less' : 'expand-more'}
+                        size={20}
+                        color="#A3834C"
                       />
                     </TouchableOpacity>
                   )}
@@ -329,7 +329,7 @@ const About = () => {
             </Animated.View>
 
             {/* Contact/Info Section */}
-          
+
 
             {/* Footer */}
             <View style={styles.footer}>
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
-  
+
   /* Fixed height notch header - From second code */
   notch: {
     height: 120, // 🔒 Fixed height (doesn't grow/shrink)
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  
+
   /* Card styling from second code */
   card: {
     backgroundColor: '#f1e3dcff',
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     textAlign: 'justify',
     marginBottom: 12,
   },
-  
+
   /* View More Button - Matching the Show More button style */
   viewMoreButton: {
     flexDirection: 'row',
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 8,
   },
-  
+
   updateInfo: {
     marginTop: 15,
     paddingTop: 10,
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginLeft: 5,
   },
-  
+
   statsContainer: {
     flexDirection: 'row',
     marginTop: 10,
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  
+
   /* Divider styling from second code */
   lineContainer: {
     flexDirection: 'row',
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#A3834C',
   },
-  
+
   /* Image Card styling from second code */
   imageCard: {
     backgroundColor: '#fff',
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 5,
   },
-  
+
   /* Show More Button - Updated to match design */
   showMoreButton: {
     flexDirection: 'row',
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 8,
   },
-  
+
   errorContainer: {
     backgroundColor: '#FFEBEE',
     borderRadius: 10,
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  
+
   infoSection: {
     marginTop: 20,
   },
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
+
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',

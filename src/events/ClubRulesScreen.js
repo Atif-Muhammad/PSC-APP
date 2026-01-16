@@ -11,8 +11,10 @@ import {
     StatusBar,
 } from 'react-native';
 import { getRules } from '../../config/apis';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import HtmlRenderer from './HtmlRenderer';
+import StandardHeader from '../components/StandardHeader';
 
 const ClubRulesScreen = ({ navigation }) => {
     const [rules, setRules] = useState([]);
@@ -44,6 +46,14 @@ const ClubRulesScreen = ({ navigation }) => {
         fetchRules();
     }, []);
 
+    useFocusEffect(
+        useCallback(() => {
+            return () => {
+                setExpandedRules({});
+            };
+        }, [])
+    );
+
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         fetchRules();
@@ -59,32 +69,17 @@ const ClubRulesScreen = ({ navigation }) => {
     const renderRuleItem = ({ item, index }) => {
         const isExpanded = expandedRules[item.id];
 
+        // Calculate plain text length to decide whether to show "View More"
+        const plainText = (item.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const showViewMore = plainText.length > 600;
+
         return (
             <View style={styles.ruleCard}>
-                {/* HEADER */}
-                <View style={styles.ruleHeader}>
-                    <View style={styles.ruleNumberContainer}>
-                        <Text style={styles.ruleNumber}>{index + 1}</Text>
-                    </View>
-
-                    {/* <View style={styles.ruleStatusContainer}>
-                        <View
-                            style={[
-                                styles.statusDot,
-                                { backgroundColor: item.isActive ? '#2ECC71' : '#E74C3C' },
-                            ]}
-                        />
-                        <Text style={styles.statusText}>
-                            {item.isActive ? 'Active' : 'Inactive'}
-                        </Text>
-                    </View> */}
-                </View>
-
                 {/* HTML CONTENT */}
                 <View
                     style={[
                         styles.htmlContainer,
-                        !isExpanded && styles.collapsedContent,
+                        (!isExpanded && showViewMore) && styles.collapsedContent,
                     ]}
                 >
                     <HtmlRenderer
@@ -94,14 +89,16 @@ const ClubRulesScreen = ({ navigation }) => {
                 </View>
 
                 {/* VIEW MORE / LESS */}
-                <TouchableOpacity
-                    onPress={() => toggleExpand(item.id)}
-                    style={styles.viewMoreButton}
-                >
-                    <Text style={styles.viewMoreText}>
-                        {isExpanded ? 'View Less ▲' : 'View More ▼'}
-                    </Text>
-                </TouchableOpacity>
+                {showViewMore && (
+                    <TouchableOpacity
+                        onPress={() => toggleExpand(item.id)}
+                        style={styles.viewMoreButton}
+                    >
+                        <Text style={styles.viewMoreText}>
+                            {isExpanded ? 'View Less ▲' : 'View More ▼'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* FOOTER */}
                 <View style={styles.ruleFooter}>
@@ -146,23 +143,10 @@ const ClubRulesScreen = ({ navigation }) => {
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
 
-            {/* 🔹 NOTCH HEADER */}
-            <ImageBackground
-                source={require('../../assets/notch.jpg')}
-                style={styles.notch}
-                imageStyle={styles.notchImage}
-            >
-                <View style={styles.notchContent}>
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => navigation.goBack()}
-                    >
-                        <Icon name="arrow-back" size={28} color="#000" />
-                    </TouchableOpacity>
-
-                    <Text style={styles.headerText}>Club Rules</Text>
-                </View>
-            </ImageBackground>
+            <StandardHeader
+                title="Club Rules"
+                onBackPress={() => navigation.goBack()}
+            />
 
             <FlatList
                 data={rules}
@@ -182,7 +166,7 @@ const ClubRulesScreen = ({ navigation }) => {
                         <View style={styles.listHeader}>
                             <Text style={styles.listHeaderText}>
                                 Important: Please read all rules carefully to ensure
-                                a pleasant experience.
+                                a pleasant experience
                             </Text>
                         </View>
                     )
@@ -240,7 +224,7 @@ const styles = StyleSheet.create({
         marginBottom: 40,
         marginRight: 40,
     },
-     
+
     /* -------------------- LIST -------------------- */
     listContainer: {
         padding: 15,
@@ -265,7 +249,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF',
         borderRadius: 15,
         padding: 20,
-        marginBottom: 15,
+        marginBottom: 10,
         elevation: 3,
     },
 
@@ -309,7 +293,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     collapsedContent: {
-        maxHeight: 120,
+        maxHeight: 180,
         overflow: 'hidden',
     },
     htmlText: {

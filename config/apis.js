@@ -1412,7 +1412,7 @@ export const getEvents = async () => {
 
 export const getRules = async () => {
   try {
-    const response = await axios.get(`${base_url}/content/rules`);
+    const response = await axios.get(`${base_url}/content/rules?type=CLUB`);
     return response.data;
   } catch (error) {
     console.error('Error fetching rules:', error);

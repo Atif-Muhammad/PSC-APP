@@ -57,25 +57,25 @@ const Header = ({ authStatus, handleRetry, shouldUseMock, onToggleMock }) => {
 
   return (
     <View style={styles.headerContainer}>
-       <ImageBackground
-              source={require('../../assets/notch.jpg')}
-              style={styles.notch}
-              imageStyle={styles.notchImage}
-            >
-              <View style={styles.notchContent}>
-                <TouchableOpacity
-                  style={styles.backButtonNotch}
-                  onPress={() => navigation.goBack()}
-                  activeOpacity={0.7}
-                >
-                  <Icon2 name="arrow-back" size={28} color="#000" />
-                </TouchableOpacity>
-                <View style={styles.headerTitleContainer}>
-                  <Text style={styles.headerTitleNotch}>Dashboard</Text>
-                </View>
-                <View style={{ width: 40 }} />
-              </View>
-            </ImageBackground>
+      <ImageBackground
+        source={require('../../assets/notch.jpg')}
+        style={styles.notch}
+        imageStyle={styles.notchImage}
+      >
+        <View style={styles.notchContent}>
+          <TouchableOpacity
+            style={styles.backButtonNotch}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Icon2 name="arrow-back" size={28} color="#000" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitleNotch}>Dashboard</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+      </ImageBackground>
     </View>
   );
 };
