@@ -1423,7 +1423,7 @@ export default function Dashboard() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#fffaf2" barStyle="dark-content" />
       <Header
         authStatus={authStatus}
@@ -1555,7 +1555,7 @@ export default function Dashboard() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
