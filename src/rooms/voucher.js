@@ -895,15 +895,15 @@
 //                 )}
 
 //                 {/* General Instructions */}
-//                 <View style={styles.instructions}>
-//                   <Text style={styles.instructionsTitle}>Important Information</Text>
+//                 <View style={styles.invoiceSection}>
+//                   <Text style={styles.sectionTitle}>Important Information</Text>
 //                   <View style={styles.instructionItem}>
-//                     <Icon name="access-time" size={16} color="#2e7d32" />
-//                     <Text style={styles.instructionText}>Check-in: 2:00 PM | Check-out: 12:00 PM</Text>
+//                     <Icon name="access-time" size={16} color="#b48a64" />
+//                     <Text style={[styles.instructionText, { color: '#333' }]}>Check-in: 2:00 PM | Check-out: 12:00 PM</Text>
 //                   </View>
 //                   <View style={styles.instructionItem}>
-//                     <Icon name="credit-card" size={16} color="#2e7d32" />
-//                     <Text style={styles.instructionText}>Government ID required at check-in</Text>
+//                     <Icon name="credit-card" size={16} color="#b48a64" />
+//                     <Text style={[styles.instructionText, { color: '#333' }]}>Government ID required at check-in</Text>
 //                   </View>
 //                 </View>
 //               </View>
@@ -913,7 +913,7 @@
 //             <View style={styles.actionButtons}>
 //               {(['PAID', 'CONFIRMED'].includes(invoiceData?.status?.toUpperCase())) ? (
 //                 <>
-//                   <TouchableOpacity
+//                   {/* <TouchableOpacity
 //                     style={styles.shareButton}
 //                     onPress={handleShareInvoice}
 //                     disabled={shareLoading}
@@ -922,7 +922,7 @@
 //                     <Text style={styles.shareButtonText}>
 //                       {shareLoading ? 'Sharing...' : 'Share'}
 //                     </Text>
-//                   </TouchableOpacity>
+//                   </TouchableOpacity> */}
 
 //                   <TouchableOpacity
 //                     style={styles.saveButton}
@@ -937,7 +937,7 @@
 //                 </>
 //               ) : (
 //                 <TouchableOpacity
-//                   style={[styles.saveButton, { backgroundColor: '#666' }]}
+//                   style={[styles.saveButton, { marginLeft: 0 }]}
 //                   onPress={handleSaveToGallery}
 //                   disabled={saveLoading}
 //                 >
@@ -1447,6 +1447,7 @@
 //   actionButtons: {
 //     flexDirection: 'row',
 //     marginBottom: 15,
+//     paddingHorizontal: 15,
 //     // gap: 10, // Removed gap for compatibility
 //   },
 //   secondaryButton: {
@@ -1488,7 +1489,7 @@
 //     justifyContent: 'center',
 //     padding: 12,
 //     borderRadius: 8,
-//     backgroundColor: '#388e3c',
+//     backgroundColor: '#b48a64',
 //     marginLeft: 10, // Added margin instead of gap
 //   },
 //   saveButtonText: {
@@ -1703,7 +1704,8 @@ export default function voucher({ navigation, route }) {
     voucherData, // Added for new payload
     dueDate: initialDueDate, // Allow initial due date from params
     isGuest,
-    memberDetails
+    memberDetails,
+    guestDetails
   } = route.params || {};
 
   // Occupancy Check (Max 2 Adults and 2 Children per room)
@@ -1753,6 +1755,34 @@ export default function voucher({ navigation, route }) {
         consumerNumber: voucherData.voucher?.consumer_number,
         membershipNo: voucherData.membership?.no || memberDetails?.membershipNo || voucherData.voucher?.membership_no,
         memberName: voucherData.membership?.name || memberDetails?.memberName,
+        // Guest details
+        isGuestBooking: Boolean(isGuest) ||
+          bookingData?.pricingType === 'guest' ||
+          voucherData?.pricingType === 'guest' ||
+          Boolean(
+            guestDetails?.name ||
+            guestDetails?.guestName ||
+            bookingData?.guestName ||
+            bookingData?.guest_name ||
+            voucherData?.guestName ||
+            voucherData?.guest_name
+          ),
+        guestName:
+          guestDetails?.name ||
+          guestDetails?.guestName ||
+          bookingData?.guestName ||
+          bookingData?.guest_name ||
+          voucherData?.guestName ||
+          voucherData?.guest_name,
+        guestContact:
+          guestDetails?.contact ||
+          guestDetails?.guestContact ||
+          guestDetails?.phone ||
+          bookingData?.guestContact ||
+          bookingData?.guest_contact ||
+          bookingData?.guestPhone ||
+          voucherData?.guestContact ||
+          voucherData?.guest_contact,
         // Room information
         roomType: roomType?.name || roomType?.type || voucherData.Room?.roomType || voucherData.voucher?.room_type || (voucherData.voucher?.remarks?.match(/for (\w+) room/i)?.[1]) || voucherData.voucher?.booking_type || 'ROOM',
         // Priority: Multi-rooms > Voucher Object > Nested Room Object > Regex Extraction > Navigation param
@@ -2433,6 +2463,26 @@ export default function voucher({ navigation, route }) {
                     </Text>
                   </View>
 
+                  {/* Guest Details - Show if guest booking */}
+                  {invoiceData.isGuestBooking && (invoiceData.guestName || invoiceData.guestContact) && (
+                    <>
+                      <View style={styles.guestDivider} />
+                      <Text style={styles.guestSectionLabel}>Guest Information</Text>
+                      {invoiceData.guestName && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Guest Name:</Text>
+                          <Text style={[styles.detailValue, styles.guestHighlight]}>{invoiceData.guestName}</Text>
+                        </View>
+                      )}
+                      {invoiceData.guestContact && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Guest Contact:</Text>
+                          <Text style={[styles.detailValue, styles.guestHighlight]}>{invoiceData.guestContact}</Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+
                   {/* {invoiceData.issued_by && (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Issued By:</Text>
@@ -2808,6 +2858,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     flex: 1,
+  },
+  guestDivider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 12,
+  },
+  guestSectionLabel: {
+    fontSize: 12,
+    color: '#333',
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  guestHighlight: {
+    color: '#333',
+    fontWeight: 'bold',
   },
 
   content: { flex: 1 },

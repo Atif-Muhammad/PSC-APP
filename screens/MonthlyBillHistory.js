@@ -568,11 +568,12 @@ const styles = StyleSheet.create({
   },
 
   // Filter Card Styles
-  filterCard: {
+ filterCard: {
     backgroundColor: '#FFF',
     borderRadius: 15,
     padding: 20,
-    marginBottom: 20,
+    marginTop: 20,
+    marginBottom: 10,
     marginHorizontal: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

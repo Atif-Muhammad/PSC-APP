@@ -1,4 +1,3 @@
-// abd 27
 // import React, { useState, useEffect } from 'react';
 // import {
 //   StyleSheet,
@@ -23,6 +22,7 @@
 // import { getUserData, banquetAPI } from '../../config/apis';
 // import { useAuth } from '../auth/contexts/AuthContext';
 // import { useVoucher } from '../auth/contexts/VoucherContext';
+// import TermsAndConditions from '../components/TermsAndConditions';
 
 // const eventTypeOptions = [
 //   { label: 'Wedding Reception', value: 'wedding' },
@@ -60,6 +60,24 @@
 //   const [guestContact, setGuestContact] = useState('');
 //   const [loading, setLoading] = useState(false);
 
+//   // Validate guest name - only alphabets and max 50 characters
+//   const handleGuestNameChange = (text) => {
+//     // Remove any non-alphabetic characters (allow spaces for full names)
+//     const sanitizedText = text.replace(/[^a-zA-Z\s]/g, '');
+//     // Limit to 50 characters
+//     const limitedText = sanitizedText.slice(0, 50);
+//     setGuestName(limitedText);
+//   };
+
+//   // Validate guest contact - Pakistani format (03XXXXXXXXX or 92XXXXXXXXXX)
+//   const handleGuestContactChange = (text) => {
+//     // Remove any non-digit characters
+//     const digitsOnly = text.replace(/[^0-9]/g, '');
+//     // Limit to 12 digits (for 92 format) but prefer 11 for 03 format
+//     const limitedText = digitsOnly.slice(0, 12);
+//     setGuestContact(limitedText);
+//   };
+
 //   // Admin Reservation States
 //   const [isAdmin, setIsAdmin] = useState(false);
 //   const [reserveFrom, setReserveFrom] = useState('');
@@ -77,6 +95,10 @@
 //   // Reservation Data
 //   const [reservedDates, setReservedDates] = useState({});
 //   const [isFetchingReservations, setIsFetchingReservations] = useState(false);
+
+//   // Terms & Conditions state
+//   const [termsAgreed, setTermsAgreed] = useState(false);
+//   const [showTermsError, setShowTermsError] = useState(false);
 
 //   // Extract membership number from user object
 //   const extractMembershipNo = () => {
@@ -110,10 +132,6 @@
 //   useEffect(() => {
 //     checkUserStatus();
 //     fetchReservations();
-
-//     if (venue) {
-//       setNumberOfGuests(venue.capacity?.toString() || '');
-//     }
 //   }, [venue]);
 
 //   const fetchReservations = async () => {
@@ -307,6 +325,14 @@
 
 //   // Member/Guest Booking function
 //   const handleGenerateInvoice = async () => {
+//     // Terms & Conditions validation
+//     if (!termsAgreed) {
+//       setShowTermsError(true);
+//       setShowBookingModal(false);
+//       Alert.alert('Terms & Conditions', 'You must agree to the Terms & Conditions before booking.');
+//       return;
+//     }
+
 //     // Validation
 //     const sortedDates = Object.keys(dateConfigurations).sort();
 //     if (sortedDates.length === 0) {
@@ -328,8 +354,10 @@
 //         Alert.alert('Error', 'Please enter guest name');
 //         return;
 //       }
-//       if (!guestContact.trim() || guestContact.length < 10) {
-//         Alert.alert('Error', 'Please enter a valid phone number');
+//       // Validate Pakistani mobile number format (03xxxxxxxxx or 92xxxxxxxxxx)
+//       const phoneRegex = /^(03\d{9}|92\d{10})$/;
+//       if (!phoneRegex.test(guestContact.trim())) {
+//         Alert.alert('Invalid Mobile Number', 'Please enter a valid mobile number (e.g., 03001234567 or 923001234567).');
 //         return;
 //       }
 //     }
@@ -402,51 +430,34 @@
 //       console.log("hall booking res:", response)
 
 //       if (response.status === 201) {
-//         Alert.alert(
-//           'Invoice Generated Successfully!',
-//           'Your hall booking invoice has been created. Please complete the payment to confirm your reservation.',
-//           [
-//             {
-//               text: 'Proceed to Payment',
-//               onPress: () => {
-//                 // Prepare navigation params
-//                 const navigationParams = {
-//                   invoiceData: response.data.Data || response.data,
-//                   bookingData: {
-//                     ...bookingData,
-//                     hallId: venue.id,
-//                     hallName: venue.name,
-//                     hallDescription: venue.description,
-//                     totalAmount: response.data.Data?.Amount || response.data.Amount,
-//                   },
-//                   venue: venue,
-//                   isGuest: isGuest,
-//                   memberDetails: !isGuest ? {
-//                     memberName: userName,
-//                     membershipNo: membershipNo
-//                   } : null,
-//                   guestDetails: isGuest ? {
-//                     guestName,
-//                     guestContact
-//                   } : null,
-//                   module: 'HALL'
-//                 };
+//         // Prepare navigation params
+//         const navigationParams = {
+//           invoiceData: response.data.Data || response.data,
+//           bookingData: {
+//             ...bookingData,
+//             hallId: venue.id,
+//             hallName: venue.name,
+//             hallDescription: venue.description,
+//             totalAmount: response.data.Data?.Amount || response.data.Amount,
+//           },
+//           venue: venue,
+//           isGuest: isGuest,
+//           memberDetails: !isGuest ? {
+//             memberName: userName,
+//             membershipNo: membershipNo
+//           } : null,
+//           guestDetails: isGuest ? {
+//             guestName,
+//             guestContact
+//           } : null,
+//           module: 'HALL'
+//         };
 
-//                 // Set global voucher for persistent timer
-//                 setVoucher(response.data.Data || response.data, navigationParams);
+//         // Set global voucher for persistent timer
+//         setVoucher(response.data.Data || response.data, navigationParams);
 
-//                 // Navigate to invoice screen
-//                 navigation.navigate('HallInvoiceScreen', navigationParams);
-//               }
-//             },
-//             {
-//               text: 'View Details',
-//               onPress: () => {
-//                 // Optionally show invoice details
-//               }
-//             }
-//           ]
-//         );
+//         // Navigate to invoice screen
+//         navigation.navigate('HallInvoiceScreen', navigationParams);
 //       } else {
 //         throw new Error(response.data.ResponseMessage || 'Failed to generate invoice');
 //       }
@@ -710,9 +721,10 @@
 //                   style={styles.guestInput}
 //                   placeholder="Guest Full Name *"
 //                   value={guestName}
-//                   onChangeText={setGuestName}
+//                   onChangeText={handleGuestNameChange}
 //                   placeholderTextColor="#999"
 //                   autoCapitalize="words"
+//                   maxLength={50}
 //                 />
 //               </View>
 //             </View>
@@ -724,10 +736,10 @@
 //                   style={styles.guestInput}
 //                   placeholder="Guest Contact Number *"
 //                   value={guestContact}
-//                   onChangeText={setGuestContact}
+//                   onChangeText={handleGuestContactChange}
 //                   keyboardType="phone-pad"
 //                   placeholderTextColor="#999"
-//                   maxLength={15}
+//                   maxLength={12}
 //                 />
 //               </View>
 //             </View>
@@ -850,6 +862,12 @@
 //               placeholderTextColor="#A0AEC0"
 //               keyboardType="numeric"
 //             />
+//           </View>
+//           <View style={styles.guestInfoNote}>
+//             <MaterialIcons name="info-outline" size={16} color="#b48a64" />
+//             <Text style={styles.guestInfoText}>
+//               (Maximum no. of guests is {venue?.capacity || 'N/A'})
+//             </Text>
 //           </View>
 
 //           {Object.keys(dateConfigurations).length > 0 ? (
@@ -978,6 +996,17 @@
 //             <Text style={{ fontWeight: 'bold' }}>03419777711</Text>.
 //           </Text>
 //         </View>
+
+//         {/* Terms & Conditions */}
+//         <TermsAndConditions
+//           bookingType="HALL"
+//           agreed={termsAgreed}
+//           onToggle={() => {
+//             setTermsAgreed(!termsAgreed);
+//             if (showTermsError) setShowTermsError(false);
+//           }}
+//           showError={showTermsError}
+//         />
 
 //         {/* Book Now Button */}
 //         <TouchableOpacity
@@ -2260,7 +2289,7 @@
 
 // export default BHBooking;
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -2303,6 +2332,7 @@ const BHBooking = ({ route, navigation }) => {
   const { setVoucher } = useVoucher();
   const { venue } = route.params || {};
   const { user, isAuthenticated } = useAuth();
+  const scrollViewRef = useRef(null);
 
   // State variables
   const [selectedDates, setSelectedDates] = useState({});
@@ -2321,6 +2351,13 @@ const BHBooking = ({ route, navigation }) => {
   const [guestName, setGuestName] = useState('');
   const [guestContact, setGuestContact] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleBookingTypeToggle = (value) => {
+    setIsGuest(value);
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    });
+  };
 
   // Validate guest name - only alphabets and max 50 characters
   const handleGuestNameChange = (text) => {
@@ -2878,6 +2915,25 @@ const BHBooking = ({ route, navigation }) => {
     );
   };
 
+  const renderSpecialRequestSection = () => (
+    <View style={styles.specialRequestContainer}>
+      <Text style={styles.sectionTitle}>Special Request</Text>
+      <View style={styles.inputGroup}>
+        <Feather name="edit-3" size={20} color="#b48a64" style={styles.inputIcon} />
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          onChangeText={setSpecialRequests}
+          value={specialRequests}
+          placeholder="Any special requirements or requests..."
+          placeholderTextColor="#A0AEC0"
+          multiline
+          numberOfLines={4}
+          textAlignVertical="top"
+        />
+      </View>
+    </View>
+  );
+
   // Member/Guest Booking Form
   const renderMemberBookingForm = () => {
     const guestPrice = venue.guestPrice || venue.chargesGuests;
@@ -2953,7 +3009,7 @@ const BHBooking = ({ route, navigation }) => {
             </Text>
             <Switch
               value={isGuest}
-              onValueChange={setIsGuest}
+              onValueChange={handleBookingTypeToggle}
               trackColor={{ false: '#D2B48C', true: '#b48a64' }}
               thumbColor={isGuest ? '#fff' : '#fff'}
               disabled={!canBookAsGuest}
@@ -3209,23 +3265,7 @@ const BHBooking = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Special Requests */}
-        <View style={styles.specialRequestContainer}>
-          <Text style={styles.sectionTitle}>Special Request</Text>
-          <View style={styles.inputGroup}>
-            <Feather name="edit-3" size={20} color="#b48a64" style={styles.inputIcon} />
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              onChangeText={setSpecialRequests}
-              value={specialRequests}
-              placeholder="Any special requirements or requests..."
-              placeholderTextColor="#A0AEC0"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-          </View>
-        </View>
+        {renderSpecialRequestSection()}
 
         {/* Price Summary */}
         <View style={styles.priceSummary}>
@@ -3354,6 +3394,7 @@ const BHBooking = ({ route, navigation }) => {
         </ImageBackground>
 
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
