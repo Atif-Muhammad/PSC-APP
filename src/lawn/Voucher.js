@@ -1892,7 +1892,6 @@ export default function Voucher({ navigation, route }) {
                 {/* Lawn Booking Summary */}
                 <View style={styles.invoiceSection}>
                   <Text style={styles.sectionTitle}>Lawn Information</Text>
-                  <View style={styles.detailRow}><Text style={styles.detailLabel}>Lawn Name:</Text><Text style={styles.detailValue}>{invoiceData.lawnName}</Text></View>
                   <View style={styles.detailRow}><Text style={styles.detailLabel}>{invoiceData.isGuest ? 'Guest Name' : 'Member Name'}:</Text><Text style={styles.detailValue}>{invoiceData.isGuest ? invoiceData.guestName : invoiceData.memberName}</Text></View>
                   <View style={styles.detailRow}><Text style={styles.detailLabel}>{invoiceData.isGuest ? 'Contact No' : 'Membership No'}:</Text><Text style={styles.detailValue}>{invoiceData.isGuest ? invoiceData.guestContact : invoiceData.membershipNo}</Text></View>
 
