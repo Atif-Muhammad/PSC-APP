@@ -2120,7 +2120,6 @@
 // });
 
 // export default About;
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   SafeAreaView,
@@ -2137,7 +2136,8 @@ import {
   Dimensions,
   Modal,
   Animated,
-  Easing
+  Easing,
+  Platform
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -2497,13 +2497,13 @@ const styles = StyleSheet.create({
 
 
   notch: {
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'ios' ? 70 : 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomEndRadius: 30,
     borderBottomStartRadius: 30,
     overflow: 'hidden',
-    minHeight: 120,
+    minHeight: Platform.OS === 'ios' ? 140 : 120,
   },
   notchImage: {
     resizeMode: 'cover',

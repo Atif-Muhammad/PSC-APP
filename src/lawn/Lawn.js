@@ -2181,7 +2181,7 @@ const Lawn = ({ navigation }) => {
           <View style={styles.notchContent}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.navigate('start')}
             >
               <Icon name="arrow-left" size={28} color="#000" />
             </TouchableOpacity>
@@ -2210,7 +2210,7 @@ const Lawn = ({ navigation }) => {
           <View style={styles.notchContent}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.navigate('start')}
             >
               <Icon name="arrow-left" size={28} color="#000" />
             </TouchableOpacity>

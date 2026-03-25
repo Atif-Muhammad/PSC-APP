@@ -1458,10 +1458,24 @@ export const calendarAPI = {
   // Photoshoot endpoints
   getPhotoshoots: async (params = {}) => {
     try {
+      console.log('📸 Fetching photoshoots with params:', params);
       const response = await api.get('/photoShoot/get/photoShoots', { params });
-      return response.data || [];
+      const photoshoots = response.data || [];
+      
+      console.log('📸 Photoshoots received:', {
+        count: photoshoots.length,
+        sample: photoshoots[0] ? {
+          id: photoshoots[0].id,
+          description: photoshoots[0].description,
+          bookings: photoshoots[0].bookings?.length || 0,
+          firstBooking: photoshoots[0].bookings?.[0]
+        } : 'No photoshoots'
+      });
+      
+      return photoshoots;
     } catch (error) {
-      console.error('Error fetching photoshoots:', error.message);
+      console.error('❌ Error fetching photoshoots:', error.message);
+      console.error('Error details:', error.response?.data);
       return [];
     }
   },
