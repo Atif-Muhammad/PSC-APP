@@ -13,15 +13,16 @@
 //     TextInput,
 // } from 'react-native';
 // import { Calendar } from 'react-native-calendars';
-// import Icon from 'react-native-vector-icons/AntDesign';
+// import Icon from 'react-native-vector-icons/Ionicons';
 // import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 // import DropDownPicker from 'react-native-dropdown-picker';
 // import { lawnAPI } from '../../config/apis';
 // import { useAuth } from '../auth/contexts/AuthContext';
 
 // const timeSlotOptions = [
-//     { label: 'Day', value: 'DAY' },
-//     { label: 'Night', value: 'NIGHT' },
+//     { label: 'Morning (8:00 AM - 2:00 PM)', value: 'MORNING' },
+//     { label: 'Evening (2:00 PM - 8:00 PM)', value: 'EVENING' },
+//     { label: 'Night (8:00 PM - 12:00 AM)', value: 'NIGHT' },
 // ];
 
 // const LawnReservation = ({ route, navigation }) => {
@@ -52,7 +53,7 @@
 
 //             const marked = {};
 
-//             // Helper to get all dates in a range
+
 //             const getDatesInRange = (startDate, endDate) => {
 //                 const dates = [];
 //                 let current = new Date(startDate);
@@ -288,7 +289,7 @@
 //         ...Object.keys(dateConfigurations).reduce((acc, date) => {
 //             acc[date] = {
 //                 selected: true,
-//                 selectedColor: '#2E7D32',
+//                 selectedColor: '#b48a64',
 //                 customStyles: reservedDates[date]?.status === 'RESERVED' ? {
 //                     container: {
 //                         borderWidth: 2,
@@ -302,17 +303,21 @@
 
 //     return (
 //         <SafeAreaView style={styles.container}>
-//             <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
+//             <StatusBar barStyle="dark-content" />
 //             <ImageBackground
 //                 source={require('../../assets/notch.jpg')}
-//                 style={styles.headerBackground}
+//                 style={styles.notch}
+//                 imageStyle={styles.notchImage}
 //             >
-//                 <View style={styles.header}>
-//                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-//                         <Icon name="arrowleft" size={24} color="#FFF" />
+//                 <View style={styles.notchContent}>
+//                     <TouchableOpacity
+//                         style={styles.backButton}
+//                         onPress={() => navigation.goBack()}
+//                     >
+//                         <Icon name="arrow-back" size={28} color="#000" />
 //                     </TouchableOpacity>
-//                     <Text style={styles.headerTitle}>Lawn Reservation</Text>
-//                     <View style={{ width: 40 }} />
+//                     <Text style={styles.headerText}>Lawn Reservation</Text>
+//                     <View style={styles.placeholder} />
 //                 </View>
 //             </ImageBackground>
 
@@ -324,7 +329,7 @@
 
 //                 <View style={styles.sectionCard}>
 //                     <View style={styles.sectionHeader}>
-//                         <MaterialIcons name="event" size={22} color="#2E7D32" />
+//                         <MaterialIcons name="event" size={22} color="#b48a64" />
 //                         <Text style={styles.sectionTitle}>Select Reservation Dates</Text>
 //                     </View>
 //                     <Calendar
@@ -333,9 +338,9 @@
 //                         onDayPress={handleDateSelect}
 //                         markedDates={markedDates}
 //                         theme={{
-//                             selectedDayBackgroundColor: '#2E7D32',
-//                             todayTextColor: '#2E7D32',
-//                             arrowColor: '#2E7D32',
+//                             selectedDayBackgroundColor: '#b48a64',
+//                             todayTextColor: '#b48a64',
+//                             arrowColor: '#b48a64',
 //                         }}
 //                     />
 //                 </View>
@@ -343,7 +348,7 @@
 //                 {Object.keys(dateConfigurations).length > 0 ? (
 //                     <View style={styles.configurationsContainer}>
 //                         <View style={styles.sectionHeader}>
-//                             <MaterialIcons name="access-time" size={22} color="#2E7D32" />
+//                             <MaterialIcons name="access-time" size={22} color="#b48a64" />
 //                             <Text style={styles.sectionTitle}>Time Slot Configurations</Text>
 //                         </View>
 //                         {Object.keys(dateConfigurations).sort().map((date, index) => (
@@ -369,13 +374,12 @@
 //                     </View>
 //                 ) : (
 //                     <View style={styles.emptyContainer}>
-//                         <Text style={styles.emptyText}>Please select at least one date from the calendar</Text>
 //                     </View>
 //                 )}
 
 //                 <View style={styles.sectionCard}>
 //                     <View style={styles.sectionHeader}>
-//                         <MaterialIcons name="note-add" size={22} color="#2E7D32" />
+//                         <MaterialIcons name="note-add" size={22} color="#b48a64" />
 //                         <Text style={styles.sectionTitle}>Admin Remarks</Text>
 //                     </View>
 //                     <TextInput
@@ -387,6 +391,16 @@
 //                         value={remarks}
 //                         onChangeText={setRemarks}
 //                     />
+//                 </View>
+//             </ScrollView>
+
+//             <View style={styles.bottomButtonContainer}>
+//                 <View style={styles.contactContainer}>
+//                     <Text style={styles.contactText}>
+//                         <Text style={{ fontWeight: 'bold' }}>Note: </Text>
+//                         For more details contact booking office{' '}
+//                         <Text style={{ fontWeight: 'bold' }}>03419777711</Text>.
+//                     </Text>
 //                 </View>
 
 //                 <TouchableOpacity
@@ -400,38 +414,48 @@
 //                         <Text style={styles.submitButtonText}>Confirm Reservation</Text>
 //                     )}
 //                 </TouchableOpacity>
-//             </ScrollView>
-//         </SafeAreaView >
+//             </View>
+//         </SafeAreaView>
 //     );
 // };
 
 // const styles = StyleSheet.create({
 //     container: {
 //         flex: 1,
-//         backgroundColor: '#F8F9FA',
+//         backgroundColor: '#FEF9F3',
 //     },
-//     headerBackground: {
-//         paddingTop: 40,
+//     notch: {
+//         paddingTop: 50,
 //         paddingBottom: 20,
 //         paddingHorizontal: 20,
-//         borderBottomLeftRadius: 30,
-//         borderBottomRightRadius: 30,
+//         borderBottomEndRadius: 30,
+//         borderBottomStartRadius: 30,
 //         overflow: 'hidden',
+//         minHeight: 120,
 //     },
-//     header: {
+//     notchImage: {
+//         resizeMode: 'cover',
+//     },
+//     notchContent: {
 //         flexDirection: 'row',
-//         alignItems: 'center',
 //         justifyContent: 'space-between',
+//         alignItems: 'center',
 //     },
 //     backButton: {
-//         padding: 8,
-//         backgroundColor: 'rgba(255,255,255,0.2)',
-//         borderRadius: 20,
+//         width: 40,
+//         height: 40,
+//         justifyContent: 'center',
+//         alignItems: 'center',
 //     },
-//     headerTitle: {
-//         color: '#FFF',
+//     headerText: {
 //         fontSize: 20,
 //         fontWeight: 'bold',
+//         color: '#000',
+//         textAlign: 'center',
+//         flex: 1,
+//     },
+//     placeholder: {
+//         width: 40,
 //     },
 //     scrollContent: {
 //         padding: 20,
@@ -472,7 +496,7 @@
 //     sectionTitle: {
 //         fontSize: 16,
 //         fontWeight: '600',
-//         color: '#2E7D32',
+//         color: '#b48a64',
 //         marginLeft: 10,
 //     },
 //     configurationsContainer: {
@@ -500,21 +524,16 @@
 //     dropdownContainer: {
 //         borderColor: '#DDD',
 //     },
-//     emptyContainer: {
-//         padding: 20,
-//         alignItems: 'center',
-//     },
+
 //     emptyText: {
 //         color: '#999',
 //         textAlign: 'center',
 //     },
 //     submitButton: {
-//         backgroundColor: '#2E7D32',
+//         backgroundColor: '#b48a64',
 //         padding: 18,
 //         borderRadius: 15,
 //         alignItems: 'center',
-//         marginTop: 10,
-//         marginBottom: 30,
 //     },
 //     submitButtonText: {
 //         color: '#FFF',
@@ -535,9 +554,29 @@
 //         minHeight: 100,
 //         textAlignVertical: 'top',
 //     },
+//     bottomButtonContainer: {
+//         paddingHorizontal: 20,
+//         paddingBottom: Platform.OS === 'ios' ? 10 : 20,
+//         backgroundColor: '#F8F9FA',
+//         borderTopWidth: 1,
+//         borderTopColor: '#EEE',
+//         paddingTop: 10,
+//     },
+//     contactContainer: {
+//         marginBottom: 10,
+//         alignItems: 'center',
+//         paddingHorizontal: 10,
+//     },
+//     contactText: {
+//         fontSize: 13,
+//         color: '#666',
+//         textAlign: 'center',
+//         lineHeight: 18,
+//     },
 // });
 
 // export default LawnReservation;
+
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -561,8 +600,7 @@ import { lawnAPI } from '../../config/apis';
 import { useAuth } from '../auth/contexts/AuthContext';
 
 const timeSlotOptions = [
-    { label: 'Morning (8:00 AM - 2:00 PM)', value: 'MORNING' },
-    { label: 'Evening (2:00 PM - 8:00 PM)', value: 'EVENING' },
+    { label: 'Day (8:00 AM - 8:00 PM)', value: 'DAY' },
     { label: 'Night (8:00 PM - 12:00 AM)', value: 'NIGHT' },
 ];
 

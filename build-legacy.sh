@@ -25,12 +25,13 @@ npx react-native bundle \
   --assets-dest android/app/src/main/res
 
 echo "🏗️ Building Release APK (Excluding problematic native build tasks)..."
-cd android
-./gradlew clean
+cd android || exit 1
+./gradlew clean || exit 1
 ./gradlew assembleRelease \
   -x externalNativeBuildDebug \
   -x externalNativeBuildRelease \
-  -x lint
+  -x lint || exit 1
+cd ..
 
 echo "✅ Build Process Complete!"
 echo "📍 APK Location: android/app/build/outputs/apk/release/app-release.apk"

@@ -438,7 +438,7 @@ const MessingCategoryDetails = ({ route, navigation }) => {
                     <ActivityIndicator size="large" color="#b48a64" />
                 </View>
             ) : (
-                <>
+                <ScrollView style={styles.itemsScroll} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
                     {/* Slider / Top Image */}
                     <View style={styles.sliderContainer}>
                         {imagesArray.length > 0 ? (
@@ -487,7 +487,7 @@ const MessingCategoryDetails = ({ route, navigation }) => {
                     )}
 
                     {/* Items List */}
-                    <ScrollView style={styles.itemsScroll} contentContainerStyle={{ paddingBottom: 30 }}>
+                    <View>
                         {itemsLoading ? (
                             <ActivityIndicator size="small" color="#A3834C" style={{ marginTop: 20 }} />
                         ) : (
@@ -508,8 +508,8 @@ const MessingCategoryDetails = ({ route, navigation }) => {
                             </View>
                         )}
 
-                    </ScrollView>
-                </>
+                    </View>
+                </ScrollView>
             )}
         </SafeAreaView>
     );

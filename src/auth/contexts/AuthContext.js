@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
 import eventBus from '../../../services/eventBus';
+import { resetNavigation } from '../../../services/NavigationService';
 
 const AuthContext = createContext();
 
@@ -78,13 +79,43 @@ export const AuthProvider = ({ children }) => {
 
   // Single Device Session: Listen for Force Logout
   useEffect(() => {
-    const handleForceLogout = (data) => {
+    const handleForceLogout = async (data) => {
       console.log('🚨 AuthContext: Force Logout Received', data);
-      logout();
+      
+      // Prevent duplicate logout calls
+      if (!isAuthenticated) {
+        console.log('⚠️ Already logged out, skipping duplicate force logout');
+        return;
+      }
+      
       Alert.alert(
         'Session Expired',
         data?.message || 'You have been logged in on another device. Please login again to continue.',
-        [{ text: 'OK' }]
+        [
+          {
+            text: 'OK',
+            onPress: async () => {
+              // Step 1: Clear all authentication storage
+              await AsyncStorage.multiRemove([
+                'access_token',
+                'refresh_token',
+                'user_info'
+              ]);
+              console.log('✅ Auth storage cleared');
+              
+              // Step 2: Reset local state immediately
+              setUser(null);
+              setTokens({ access_token: null, refresh_token: null });
+              setIsAuthenticated(false);
+              
+              // Step 3: Small delay to ensure storage is cleared before navigation
+              await new Promise(resolve => setTimeout(resolve, 50));
+              
+              // Step 4: Hard reset navigation to LoginScr (no back button)
+              resetNavigation('LoginScr');
+            }
+          }
+        ]
       );
     };
 
@@ -92,7 +123,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       eventBus.off('FORCE_LOGOUT', handleForceLogout);
     };
-  }, [logout]);
+  }, [isAuthenticated]);
 
   const clearAuthStorage = async () => {
     try {

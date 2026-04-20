@@ -1,4 +1,5 @@
-//App.js                                                                                                                                                                                                             import 'react-native-gesture-handler';
+//App.js
+import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { enableScreens } from 'react-native-screens';
 import { View, Button, Alert, LogBox, Image, StyleSheet, Text, TouchableOpacity, StatusBar, Linking } from 'react-native';
@@ -17,6 +18,8 @@ import { queryClient } from './hooks/useQueries';
 // Deep Linking Configuration
 import linking from './config/linking';
 
+// Navigation Service
+import { setNavigator } from './services/NavigationService';
 
 // Notification Handler
 import {
@@ -55,6 +58,7 @@ import SportsScreen from './src/sports/SportsScreen.js';
 import SportDetailsScreen from './src/sports/SportDetailsScreen.js';
 import ClubArenaScreen from './slides/ClubArenaScreen';
 import BillPaymentScreen from './slides/BillPaymentScreen';
+import { BillPaymentReceipt } from './slides/BillPaymentScreen';
 import LoginScr from './src/auth/LoginScr';
 import HallDetailsScreen from './src/halls/HallDetailsScreen';
 import HallReservation from './src/halls/HallReservation';
@@ -99,7 +103,10 @@ import ClubRulesScreen from './src/events/ClubRulesScreen';
 import MemberBookingsScreen from './src/view/MemberBookingsScreen';
 import BookingDetailsScreen from './src/view/BookingDetailsScreen';
 import AdminBookingsScreen from './src/view/AdminBookingsScreen';
+import ViewProfileScreen from './src/view/ViewProfileScreen';
 import feedbacks from './slides/feedbacks';
+import BillPaymentHistory from './slides/BillPaymentHistory';
+import MonthlyBillHistory from './screens/MonthlyBillHistory';
 
 // ===== Navigation Setup =====
 enableScreens();
@@ -252,6 +259,16 @@ function MemberDrawer() {
           ),
         }}
       />
+         {/* <Drawer.Screen
+        name="View Profile"
+        component={ViewProfileScreen}
+        options={{
+          headerShown: false,
+          drawerIcon: ({ color, size }) => (
+            <MaterialIcons name="view-profile" size={size} color={color} />
+          ),
+        }}
+      /> */}
       <Drawer.Screen
         name="Feedback"
         component={feedbacks}
@@ -303,6 +320,16 @@ function MemberDrawer() {
         }}
       />
       <Drawer.Screen
+        name="Bill Payment History"
+        component={BillPaymentHistory}
+        options={{
+          headerShown: false,
+          drawerIcon: ({ color, size }) => (
+            <MaterialIcons name="receipt" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="Contact us"
         component={contact}
         options={{
@@ -313,8 +340,8 @@ function MemberDrawer() {
         }}
       />
       {/* <Drawer.Screen
-        name="Booking Details"
-        component={BookingDetailsScreen}
+        name="Monthly Bill History"
+        component={MonthlyBillHistory}
         options={{
           headerShown: false,
           drawerIcon: ({ color, size }) => (
@@ -527,6 +554,10 @@ function AppContent() {
   // Handle navigation ready callback
   const onNavigationReady = () => {
     console.log('🧭 [Navigation] Container is ready');
+
+    // Register navigation ref in NavigationService
+    setNavigator(navigationRef);
+
     // Handle any pending navigation from notification
     if (pendingNotification.current) {
       handleNotificationNavigation(pendingNotification.current, navigationRef);
@@ -616,6 +647,7 @@ function AppContent() {
         <Stack.Screen name="SportDetailsScreen" component={SportDetailsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Swimming" component={Swimming} options={{ headerShown: false }} />
         <Stack.Screen name="BillPaymentScreen" component={BillPaymentScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="BillPaymentReceipt" component={BillPaymentReceipt} options={{ headerShown: false }} />
         <Stack.Screen name="ClubArenaScreen" component={ClubArenaScreen} options={{ headerShown: false }} />
         <Stack.Screen name="contact" component={contact} />
         <Stack.Screen name="events" component={events} options={{ headerShown: false }} />
@@ -651,10 +683,13 @@ function AppContent() {
         <Stack.Screen name="MemberBookingsScreen" component={MemberBookingsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="BookingDetailsScreen" component={BookingDetailsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="AdminBookingsScreen" component={AdminBookingsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="ViewProfileScreen" component={ViewProfileScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Announcements" component={Announcements} options={{ headerShown: false }} />
         <Stack.Screen name="ReservationsScreen" component={ReservationsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Feedback" component={feedbacks} options={{ headerShown: false }} />
         <Stack.Screen name="RoomBookingScreen" component={RoomBookingScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="BillPaymentHistory" component={BillPaymentHistory} options={{ headerShown: false }} />
+        <Stack.Screen name="MonthlyBillHistory" component={MonthlyBillHistory} options={{ headerShown: false }} />
       </Stack.Navigator>
       <BookingSummaryBar />
     </NavigationContainer>

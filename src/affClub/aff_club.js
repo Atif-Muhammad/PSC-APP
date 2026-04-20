@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -33,6 +33,8 @@ import {
 
 const aff_club = () => {
   const navigation = useNavigation();
+  const isMountedRef = useRef(true);
+  
   const [modalVisible, setModalVisible] = useState(false);
   const [instructionsModalVisible, setInstructionsModalVisible] = useState(false); // Start false, check AsyncStorage
   const [selectedClub, setSelectedClub] = useState(null);
@@ -57,27 +59,120 @@ const aff_club = () => {
   const [userRequests, setUserRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
 
+  // Helper to check if user is authenticated before making API calls
+  const isAuthenticated = async () => {
+    const token = await AsyncStorage.getItem('access_token');
+    return !!token;
+  };
+
+  // Enhanced authentication check with navigation redirect
+  const ensureAuthenticated = async (functionName) => {
+    const token = await AsyncStorage.getItem('access_token');
+    
+    if (!token) {
+      console.warn(`⚠️ ${functionName}: No authentication token found`);
+      
+      // Only redirect if component is mounted to prevent navigation errors
+      if (isMountedRef.current) {
+        Alert.alert(
+          'Authentication Required',
+          'Please log in to continue.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'LoginScr' }],
+                });
+              }
+            }
+          ]
+        );
+      }
+      return false;
+    }
+    
+    return true;
+  };
+
   useEffect(() => {
-    checkAdminStatus();
-    fetchUserProfile();
-    fetchAffiliatedClubs();
-    // Show instructions modal when the screen opens
-    checkFirstVisit();
-    // Verify user status and send FCM token
-    checkUserStatus();
+    isMountedRef.current = true;
+    
+    // Sequential initialization to prevent race conditions on physical devices
+    const initializeScreen = async () => {
+      try {
+        // Step 1: Verify authentication first (prevents unauthorized API calls)
+        const authenticated = await ensureAuthenticated('useEffect');
+        if (!authenticated) {
+          console.log('⚠️ User not authenticated, skipping initialization');
+          if (isMountedRef.current) {
+            setClubsLoading(false);
+          }
+          return;
+        }
+        
+        // Small delay to ensure token write is complete on physical devices
+        // This prevents the "stale token" race condition
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Step 2: Load user profile (needed for other operations)
+        await fetchUserProfile();
+        
+        // Step 3: Check admin status (depends on user profile)
+        await checkAdminStatus();
+        
+        // Step 4: Fetch clubs (requires authentication)
+        await fetchAffiliatedClubs();
+        
+        // Step 5: Show instructions modal
+        await checkFirstVisit();
+        
+        // Step 6: Verify user status and send FCM token (non-critical, failures are silent)
+        await checkUserStatus();
+        
+      } catch (error) {
+        console.error('❌ Error during screen initialization:', error);
+        if (isMountedRef.current) {
+          Alert.alert('Error', 'Failed to load screen data. Please try again.');
+          setClubsLoading(false);
+        }
+      }
+    };
+    
+    initializeScreen();
+
+    // Cleanup function to prevent memory leaks and unmounted component updates
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const checkUserStatus = async () => {
     try {
+      // Check if still mounted and authenticated before making request
+      if (!isMountedRef.current) return;
+      
+      const tokenValid = await isAuthenticated();
+      if (!tokenValid) {
+        console.log('⚠️ Skipping user status check - not authenticated');
+        return;
+      }
+
       let fcmToken = null;
       try {
         fcmToken = await messaging().getToken();
       } catch (fcmErr) {
         console.log(fcmErr.message);
       }
-      const statusData = await userWho(fcmToken);
+      
+      // Only proceed if component is still mounted
+      if (isMountedRef.current && fcmToken) {
+        const statusData = await userWho(fcmToken);
+      }
     } catch (error) {
-      console.log(error);
+      // Silently handle errors to avoid showing session expired popup
+      console.log('checkUserStatus error:', error.message);
     }
   };
 
@@ -97,6 +192,16 @@ const aff_club = () => {
 
   const checkAdminStatus = async () => {
     try {
+      // Enhanced authentication check
+      const tokenValid = await ensureAuthenticated('checkAdminStatus');
+      if (!tokenValid) {
+        console.log('⚠️ Skipping admin status check - not authenticated');
+        if (isMountedRef.current) {
+          setIsAdmin(false);
+        }
+        return;
+      }
+
       const user = await getCurrentAdmin();
 
       const role = user?.role?.toLowerCase();
@@ -110,27 +215,38 @@ const aff_club = () => {
         rolesArray.includes('superadmin') ||
         user?.isAdmin === true;
 
-      if (isAdminUser) {
-        setIsAdmin(true);
-        fetchClubStats();
-      } else {
-        setIsAdmin(false);
+      if (isMountedRef.current) {
+        if (isAdminUser) {
+          setIsAdmin(true);
+          // Only fetch stats if still mounted
+          if (isMountedRef.current) {
+            await fetchClubStats();
+          }
+        } else {
+          setIsAdmin(false);
+        }
       }
 
     } catch (error) {
-      console.log('Error checking admin status:', error);
-      setIsAdmin(false);
+      console.error('❌ Error checking admin status:', error);
+      if (isMountedRef.current) {
+        setIsAdmin(false);
+      }
     }
   };
 
 
 
   const fetchClubStats = async () => {
-
     try {
+      // Enhanced authentication check
+      const tokenValid = await ensureAuthenticated('fetchClubStats');
+      if (!tokenValid) {
+        console.log('⚠️ Skipping fetch club stats - not authenticated');
+        return;
+      }
+
       // Frontend Logic: Fetch all requests and count them per club
-      // Passing no arguments to get ALL requests (might require backend support for no-filter)
-      // If backend requires filters, this might need adjustment, but user prompt implies no specific clubId gets everything.
       const allRequests = await getAffiliatedClubRequests();
 
       const statsMap = {};
@@ -142,37 +258,71 @@ const aff_club = () => {
           }
         });
       }
-      setClubStats(statsMap);
-      console.log('📊 Calculated Club Stats:', statsMap);
+      
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setClubStats(statsMap);
+        console.log('📊 Calculated Club Stats:', statsMap);
+      }
     } catch (error) {
-      console.log('Error fetching/calculating stats:', error);
+      console.error('❌ Error fetching/calculating stats:', error);
     }
   };
 
   const fetchUserProfile = async () => {
     try {
+      // Note: getUserData reads from local storage, no auth check needed here
       const profile = await getUserData();
-      setUserProfile(profile);
-      // Try to get membership number from different possible fields
-      setMemberId(profile.membershipNumber || profile.membershipNo || profile.Membership_No || profile.memberId || '');
+      
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setUserProfile(profile);
+        // Try to get membership number from different possible fields
+        setMemberId(profile.membershipNumber || profile.membershipNo || profile.Membership_No || profile.memberId || '');
+      }
     } catch (error) {
-      console.log('Error fetching user profile:', error);
-      Alert.alert('Error', 'Failed to load user information');
+      console.error('❌ Error fetching user profile:', error);
+      if (isMountedRef.current) {
+        // Don't show alert for non-critical profile loading errors
+        console.log('⚠️ User profile could not be loaded');
+      }
     }
   };
 
   const fetchAffiliatedClubs = async () => {
     try {
-      setClubsLoading(true);
+      // Enhanced authentication check
+      const tokenValid = await ensureAuthenticated('fetchAffiliatedClubs');
+      if (!tokenValid) {
+        console.log('⚠️ Skipping fetch affiliated clubs - not authenticated');
+        if (isMountedRef.current) {
+          setClubsLoading(false);
+          setRefreshing(false);
+        }
+        return;
+      }
+
+      if (isMountedRef.current) {
+        setClubsLoading(true);
+      }
+      
       const clubsData = await getAffiliatedClubs();
       const activeClubs = clubsData.filter(club => club.isActive !== false);
-      setClubs(activeClubs);
+      
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setClubs(activeClubs);
+      }
     } catch (error) {
-      console.log('Error fetching clubs:', error);
-      Alert.alert('Error', 'Failed to load clubs. Please try again.');
+      console.error('❌ Error fetching clubs:', error);
+      if (isMountedRef.current) {
+        Alert.alert('Error', 'Failed to load clubs. Please try again.');
+      }
     } finally {
-      setClubsLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setClubsLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -195,20 +345,42 @@ const aff_club = () => {
 
   const fetchUserRequests = async () => {
     if (!memberId) {
-      Alert.alert('Error', 'Membership information not found. Please log in again.');
+      if (isMountedRef.current) {
+        Alert.alert('Error', 'Membership information not found. Please log in again.');
+      }
+      return;
+    }
+
+    // Enhanced authentication check
+    const tokenValid = await ensureAuthenticated('fetchUserRequests');
+    if (!tokenValid) {
+      console.log('⚠️ Skipping fetch user requests - not authenticated');
+      if (isMountedRef.current) {
+        setRequestsModalVisible(false);
+      }
       return;
     }
 
     try {
-      setRequestsLoading(true);
-      setRequestsModalVisible(true);
+      if (isMountedRef.current) {
+        setRequestsLoading(true);
+        setRequestsModalVisible(true);
+      }
       const data = await getUserAffiliatedClubRequests(memberId);
-      setUserRequests(data);
+      
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setUserRequests(data);
+      }
     } catch (error) {
-      console.log('Error fetching requests:', error);
-      Alert.alert('Error', 'Failed to load your requests. Please try again.');
+      console.error('❌ Error fetching requests:', error);
+      if (isMountedRef.current) {
+        Alert.alert('Error', 'Failed to load your requests. Please try again.');
+      }
     } finally {
-      setRequestsLoading(false);
+      if (isMountedRef.current) {
+        setRequestsLoading(false);
+      }
     }
   };
 
@@ -238,12 +410,16 @@ const aff_club = () => {
 
   const handleSendVisitRequest = async () => {
     if (!memberId || memberId.trim() === '') {
-      Alert.alert('Error', 'Member ID is required');
+      if (isMountedRef.current) {
+        Alert.alert('Error', 'Member ID is required');
+      }
       return;
     }
 
     if (!visitDate) {
-      Alert.alert('Error', 'Please select a visit date');
+      if (isMountedRef.current) {
+        Alert.alert('Error', 'Please select a visit date');
+      }
       return;
     }
 
@@ -254,11 +430,26 @@ const aff_club = () => {
     selected.setHours(0, 0, 0, 0);
 
     if (selected < today) {
-      Alert.alert('Error', 'Cannot select a past date');
+      if (isMountedRef.current) {
+        Alert.alert('Error', 'Cannot select a past date');
+      }
       return;
     }
 
-    setLoading(true);
+    // Enhanced authentication check with redirect
+    const tokenValid = await ensureAuthenticated('handleSendVisitRequest');
+    if (!tokenValid) {
+      console.log('⚠️ Cannot submit request - not authenticated');
+      if (isMountedRef.current) {
+        setLoading(false);
+        setModalVisible(false);
+      }
+      return;
+    }
+
+    if (isMountedRef.current) {
+      setLoading(true);
+    }
 
     try {
       // Prepare payload exactly as web portal expects
@@ -272,21 +463,23 @@ const aff_club = () => {
 
       const response = await createAffiliatedClubRequest(requestData);
 
-      Alert.alert(
-        'Success',
-        'Visit request submitted successfully! You will receive a confirmation email.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setModalVisible(false);
+      if (isMountedRef.current) {
+        Alert.alert(
+          'Success',
+          'Visit request submitted successfully! You will receive a confirmation email.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setModalVisible(false);
+              }
             }
-          }
-        ]
-      );
+          ]
+        );
+      }
 
     } catch (error) {
-      console.log('Error submitting request:', error);
+      console.error('❌ Error submitting request:', error);
       let errorMessage = 'Failed to submit visit request. Please try again.';
 
       if (error.response) {
@@ -303,9 +496,13 @@ const aff_club = () => {
         }
       }
 
-      Alert.alert('Error', errorMessage);
+      if (isMountedRef.current) {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

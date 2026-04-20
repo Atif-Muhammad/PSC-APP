@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,12 +10,13 @@ import {
   ScrollView,
   TouchableWithoutFeedback,
   Dimensions,
-
+  ActivityIndicator,
 } from "react-native";
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { getUserNotifications, updateNotiStatus } from "../config/apis";
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import AnnouncementRenderer from '../src/components/AnnouncementRenderer';
 
 const { height } = Dimensions.get('window');
 
@@ -28,28 +29,37 @@ export default function Announcements({ navigation }) {
   const [announcements, setAnnouncements] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const fetchAnnouncements = async () => {
+    setLoading(true);
     try {
       const response = await getUserNotifications();
       const lastClearedTime = await AsyncStorage.getItem('lastClearedNotificationsTime');
 
-      let filteredResponse = response;
+      let filteredResponse = response || [];
       if (lastClearedTime) {
-        filteredResponse = response.filter(item => new Date(item.createdAt) > new Date(lastClearedTime));
+        filteredResponse = filteredResponse.filter(item => new Date(item.createdAt) > new Date(lastClearedTime));
       }
 
       setAnnouncements(filteredResponse.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
     } catch (error) {
       console.error("Error fetching announcements:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
 
 
-  useEffect(() => {
-    fetchAnnouncements();
-  }, []);
+  // Fetch announcements every time the screen gains focus
+  // (useEffect with [] only runs once on mount, but React Navigation
+  // keeps screens mounted, so new notifications wouldn't appear)
+  useFocusEffect(
+    useCallback(() => {
+      fetchAnnouncements();
+    }, [])
+  );
 
   const openModal = async (item) => {
     setSelectedAnnouncement(item);
@@ -110,30 +120,43 @@ export default function Announcements({ navigation }) {
       </ImageBackground>
 
       {/* Announcements List */}
-      <FlatList
-        data={announcements}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        renderItem={({ item }) => {
-          const isSeen = item?.deliveries?.[0]?.seen;
-          return (
-            <TouchableOpacity onPress={() => openModal(item)} activeOpacity={0.8}>
-              <View style={[styles.card, isSeen ? styles.seenCard : styles.unseenCard]}>
-                <View style={styles.cardContent}>
-                  <View style={styles.titleContainer}>
-                    <Text style={[styles.title, isSeen && styles.seenTitle]}>{item.title}</Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#A3834C" />
+          <Text style={styles.loadingText}>Loading announcements...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={announcements}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          renderItem={({ item }) => {
+            const isSeen = item?.deliveries?.[0]?.seen;
+            return (
+              <TouchableOpacity onPress={() => openModal(item)} activeOpacity={0.8}>
+                <View style={[styles.card, isSeen ? styles.seenCard : styles.unseenCard]}>
+                  <View style={styles.cardContent}>
+                    <View style={styles.titleContainer}>
+                      <Text style={[styles.title, isSeen && styles.seenTitle]}>{item.title}</Text>
+                    </View>
+                    <Text style={styles.date}>
+                      {item.createdAt ? formatDateTime(item.createdAt) : item.date}
+                    </Text>
                   </View>
-                  <Text style={styles.date}>
-                    {item.createdAt ? formatDateTime(item.createdAt) : item.date}
-                  </Text>
+                  {!isSeen && <View style={styles.unreadDot} />}
+                  <Icon name="chevron-right" size={20} color={isSeen ? "#AAA" : "#888"} />
                 </View>
-                {!isSeen && <View style={styles.unreadDot} />}
-                <Icon name="chevron-right" size={20} color={isSeen ? "#AAA" : "#888"} />
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-      />
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Icon name="notifications-none" size={64} color="#CCC" />
+              <Text style={styles.emptyText}>No announcements yet</Text>
+            </View>
+          }
+        />
+      )}
 
       {/* Floating Refresh Button */}
       <TouchableOpacity style={styles.refreshButton} onPress={fetchAnnouncements}>
@@ -180,13 +203,16 @@ export default function Announcements({ navigation }) {
                       <View style={styles.modalDivider} />
 
                       <View style={styles.messageBubble}>
-                        <Text style={styles.modalText}>
-                          {selectedAnnouncement.description ||
+                        {/* Rich Text Renderer for HTML content */}
+                        <AnnouncementRenderer
+                          htmlContent={
+                            selectedAnnouncement.description ||
                             selectedAnnouncement.content ||
                             selectedAnnouncement.body ||
                             selectedAnnouncement.message ||
-                            "No detailed description available."}
-                        </Text>
+                            "<p>No detailed description available.</p>"
+                          }
+                        />
                       </View>
                     </View>
                   )}
@@ -418,6 +444,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: 'white',
+  },
+  // Loading and Empty states
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#888',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+    paddingBottom: 50,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
   },
 });
 

@@ -4,6 +4,7 @@ import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
 import eventBus from '../services/eventBus';
+import { resetNavigation } from '../services/NavigationService';
 
 export const getBaseUrl = () => {
   if (Platform.OS === 'android') {
@@ -17,6 +18,23 @@ export const getBaseUrl = () => {
 const base_url = getBaseUrl();
 console.log('Using base URL:', base_url);
 
+// Token write lock to prevent race conditions during login/logout
+let isTokenBeingWritten = false;
+const MAX_LOCK_WAIT_TIME = 2000; // 2 seconds max wait
+
+const waitForTokenWrite = async () => {
+  if (!isTokenBeingWritten) return;
+
+  const startTime = Date.now();
+  while (isTokenBeingWritten) {
+    if (Date.now() - startTime > MAX_LOCK_WAIT_TIME) {
+      console.warn('⚠️ Token write lock timeout - proceeding anyway');
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+};
+
 const api = axios.create({
   baseURL: base_url,
   timeout: 10000,
@@ -24,50 +42,113 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
-
 });
 
 api.interceptors.request.use(
   async (config) => {
     try {
+      // Wait for any pending token writes to complete (prevents race conditions)
+      await waitForTokenWrite();
+
       const token = await AsyncStorage.getItem('access_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        // Don't log for auth endpoints to reduce noise
+        const isAuthEndpoint = config.url.includes('/auth/') || config.url.includes('/login');
+        if (!isAuthEndpoint) {
+          console.log('ℹ️ No access token found for API request to:', config.url);
+        }
       }
 
       // Add FCM Token check for Single Device Session
-      try {
-        const fcmToken = await messaging().getToken();
-        if (fcmToken) {
-          config.headers['client-fcm-token'] = fcmToken;
+      // Skip for auth endpoints to avoid issues during login
+      const isAuthEndpoint = config.url.includes('/auth/') || config.url.includes('/login');
+      if (!isAuthEndpoint && token) {
+        // Only add FCM token if we have a valid auth token
+        try {
+          const fcmToken = await messaging().getToken();
+          if (fcmToken) {
+            config.headers['client-fcm-token'] = fcmToken;
+          }
+        } catch (fcmErr) {
+          console.warn('⚠️ Could not get FCM token for header:', fcmErr.message);
         }
-      } catch (fcmErr) {
-        console.warn('⚠️ Could not get FCM token for header:', fcmErr.message);
       }
 
     } catch (error) {
-      console.error('Error in request interceptor:', error);
+      console.error('❌ Error in request interceptor:', error);
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
+// Flag to prevent multiple logout triggers during token handover
+let isLoggingOut = false;
+
 // Response Interceptor for Session Expiration
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    console.log("Error in response interceptor:", error);
+    const originalRequest = error.config;
+
+    console.log("Error in response interceptor:", {
+      status: error.response?.status,
+      data: error.response?.data,
+      url: originalRequest?.url
+    });
+
+    // Handle SESSION_EXPIRED (403) - True unauthorized from Force Logout
     if (error.response?.status === 403 && error.response?.data?.error === 'SESSION_EXPIRED') {
+      // Prevent duplicate logout calls
+      if (isLoggingOut) {
+        console.log('⚠️ Logout already in progress, skipping duplicate trigger');
+        return Promise.reject(error);
+      }
+
+      isLoggingOut = true;
       console.error('🚨 Session Expired: Logged in on another device');
 
-      // Notify the AuthContext to logout
-      eventBus.emit('FORCE_LOGOUT', {
-        message: error.response?.data?.message || 'You have been logged in on another device.'
-      });
+      try {
+        // Option 1: Use eventBus (recommended - triggers Alert via AuthContext)
+        eventBus.emit('FORCE_LOGOUT', {
+          message: error.response?.data?.message || 'You have been logged in on another device.'
+        });
+      } catch (emitError) {
+        console.error('❌ Failed to emit FORCE_LOGOUT event:', emitError);
+      }
 
       return new Promise(() => { }); // Stop the promise chain
     }
+
+    // Handle 401 Unauthorized - Could be transient or permanent
+    if (error.response?.status === 401) {
+      // Check if this is a retry attempt
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
+
+        // Verify current token state before deciding to logout
+        try {
+          const currentToken = await AsyncStorage.getItem('access_token');
+
+          // If token exists and matches the failed request, it's a true 401
+          // If token is different or missing, it was a transient handover issue
+          if (currentToken) {
+            // Token still exists - this might be a real auth failure
+            // Don't logout immediately, let the error propagate
+            console.log('⚠️ 401 received but token still exists - possible transient error');
+          } else {
+            // No token - user already logged out, don't trigger again
+            console.log('ℹ️ 401 received but no token exists - skipping logout');
+            return Promise.reject(error);
+          }
+        } catch (storageError) {
+          console.error('❌ Error checking token during 401 handling:', storageError);
+        }
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -75,12 +156,24 @@ api.interceptors.response.use(
 // Token management functions
 export const storeAuthData = async (tokens, userData) => {
   try {
+    // Set write lock to prevent race conditions
+    isTokenBeingWritten = true;
+
     await AsyncStorage.setItem('access_token', tokens.access_token);
     await AsyncStorage.setItem('refresh_token', tokens.refresh_token);
     await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+
     console.log('✅ Auth data stored');
+
+    // Release lock after a small delay to ensure writes complete
+    setTimeout(() => {
+      isTokenBeingWritten = false;
+      console.log('🔓 Token write lock released');
+    }, 100);
+
   } catch (error) {
-    console.error('Error storing auth data:', error);
+    console.error('❌ Error storing auth data:', error);
+    isTokenBeingWritten = false; // Always release lock on error
   }
 };
 
@@ -98,6 +191,7 @@ export const userWho = async (fcmToken = null) => {
     let tokenToSend = fcmToken;
     if (!tokenToSend) {
       try {
+        // Check if FCM is properly initialized before attempting to get token
         tokenToSend = await messaging().getToken();
       } catch (fcmErr) {
         console.warn('⚠️ userWho: Could not get FCM token:', fcmErr.message);
@@ -166,6 +260,114 @@ export const updateNotiStatus = async (notiID) => {
   } catch (error) {
     console.error('Error updating notification status:', error);
     return null;
+  }
+};
+
+
+export const getMonthlyBill = async (membershipNo, month, year) => {
+  try {
+  const token= await getAuthToken();
+  console.log('📋 Fetching monthly bill for member:', membershipNo, 'month:', month, 'year:', year);
+    
+  const response = await api.get(`/accounts/get-monthly-bill`, {
+    params: {
+      membershipNo,
+      month,
+      year
+      },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      }
+    });
+    
+  console.log('✅ Monthly bill received:', response.data);
+  return response.data;
+  } catch (error) {
+  console.error('❌ Error fetching monthly bill:', error);
+    throw error;
+  }
+};
+
+export const listMonthlyBills = async (month, year) => {
+  try {
+  const token= await getAuthToken();
+ if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    
+  console.log('📋 Fetching all monthly bills for month:', month, 'year:', year);
+    
+    // Construct full URL for debugging
+  const fullUrl = `${base_url}/accounts/list-bills`;
+  console.log('🔗 Request URL:', fullUrl);
+    
+  const response = await api.get(`/accounts/list-bills`, {
+  params: {
+    month,
+    year
+      },
+  headers: {
+    Authorization: `Bearer ${token}`,
+      },
+  withCredentials: true
+    });
+    
+  console.log('✅ Monthly bills list received:', response.data);
+ return response.data;
+  } catch (error) {
+if (error.response?.status === 404) {
+  console.error('❌ 404 Error - Full URL:', error.config?.url || error.config?.baseURL + error.config?.url);
+  console.error('❌ 404 Error - Params:', error.config?.params);
+    }
+  console.error('❌ Error fetching monthly bills list:', error);
+    throw error;
+  }
+};
+
+export const getLatestBill = async (membershipNo) => {
+  try {
+  const token= await getAuthToken();
+  console.log('📋 Fetching latest bill for member:', membershipNo);
+    
+    // Get current month and year
+  const currentDate = new Date();
+  const month= currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+  const year = currentDate.getFullYear();
+    
+    // Reuse getMonthlyBill with current period
+  const response = await api.get(`/accounts/get-monthly-bill`, {
+    params: {
+      membershipNo,
+      month,
+      year
+      },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      }
+    });
+    
+  console.log('✅ Latest bill received:', response.data);
+  return response.data;
+  } catch (error) {
+  console.error('❌ Error fetching latest bill:', error);
+    throw error;
+  }
+};
+
+
+export const getBillPaymentHistory = async (membershipNo, from, to) => {
+  try {
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+
+    const response = await api.get(`/payment/bill-payment-history/${membershipNo}`, {
+      params,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error getting bill payment history:', error);
+    throw error;
   }
 };
 
@@ -316,6 +518,18 @@ export const paymentAPI = {
       return response.data;
     } catch (error) {
       console.error('❌ Error verifying payment:', error);
+      throw error;
+    }
+  },
+
+  // Cancel balance voucher
+  cancelBalanceVoucher: async (voucherId) => {
+    try {
+      console.log('🔴 Cancelling balance voucher:', voucherId);
+      const response = await api.post(`/payment/balance/cancel/${voucherId}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error cancelling balance voucher:', error);
       throw error;
     }
   },
@@ -725,6 +939,35 @@ export const getAffiliatedClubRequests = async (from, to, clubId) => {
   } catch (error) {
     console.error("❌ Error fetching club requests:", error.message);
     throw error;
+  }
+};
+
+export const getContactUs = async () => {
+  try {
+    console.log('📞 Fetching contact us data...');
+    const response = await api.get(`${base_url}/content/contact-us`);
+    console.log('✅ Contact us response:', JSON.stringify(response.data, null, 2));
+
+    // Handle different response formats
+    if (!response.data) {
+      console.warn('⚠️ Empty response from contact-us API');
+      return null;
+    }
+
+    // If the response has a data wrapper (common in many APIs)
+    if (response.data.data && typeof response.data.data === 'object') {
+      console.log('📦 Found data wrapper, using inner data');
+      return response.data.data;
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching contact info:', error);
+    console.error('Error details:', error.response?.data);
+    throw {
+      message: error.response?.data?.message || "Error fetching contact info",
+      status: error.response?.status || 500
+    };
   }
 };
 export const createAffiliatedClubRequest = async (requestData) => {
@@ -1215,10 +1458,24 @@ export const calendarAPI = {
   // Photoshoot endpoints
   getPhotoshoots: async (params = {}) => {
     try {
+      console.log('📸 Fetching photoshoots with params:', params);
       const response = await api.get('/photoShoot/get/photoShoots', { params });
-      return response.data || [];
+      const photoshoots = response.data || [];
+      
+      console.log('📸 Photoshoots received:', {
+        count: photoshoots.length,
+        sample: photoshoots[0] ? {
+          id: photoshoots[0].id,
+          description: photoshoots[0].description,
+          bookings: photoshoots[0].bookings?.length || 0,
+          firstBooking: photoshoots[0].bookings?.[0]
+        } : 'No photoshoots'
+      });
+      
+      return photoshoots;
     } catch (error) {
-      console.error('Error fetching photoshoots:', error.message);
+      console.error('❌ Error fetching photoshoots:', error.message);
+      console.error('Error details:', error.response?.data);
       return [];
     }
   },
@@ -1412,23 +1669,110 @@ export const getAdminReservations = async (adminId, filters = {}) => {
 };
 
 // Cancel reservation
-export const cancelReservation = async (reservationId) => {
+export const cancelReservation = async (reservationData) => {
   try {
-    const response = await api.delete(`/auth/reservations/${reservationId}`);
+    console.log('🔄 Canceling reservation with toggle pattern...', reservationData);
+
+    // Extract required data from reservationData
+    const { roomIds, reserveFrom, reserveTo, remarks, id } = reservationData;
+
+    // Handle case where roomIds might not be provided
+    const actualRoomIds = roomIds || (id ? [id] : []);
+
+    if (actualRoomIds.length === 0) {
+      throw new Error('No room IDs provided for cancellation');
+    }
+
+    // Use the same toggle pattern as working unreserve logic
+    const payload = {
+      roomIds: actualRoomIds,   // Array of room IDs
+      reserve: false,          // Set to false to cancel/unreserve
+      reserveFrom: reserveFrom, // Same date as original reservation
+      reserveTo: reserveTo,     // Same date as original reservation
+      remarks: remarks || 'Reservation cancelled', // Optional remarks
+    };
+
+    console.log('📤 Cancel payload:', JSON.stringify(payload, null, 2));
+
+    // Use the same endpoint as reserveRooms but with reserve: false
+    const response = await api.patch('/room/reserve/rooms', payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${await getAuthToken()}`
+      }
+    });
+
+    console.log('✅ Reservation cancelled successfully:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Cancel reservation error:', error);
+    console.error('❌ Cancel reservation error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method
+      }
+    });
     throw error;
   }
 };
 
 // Update reservation
-export const updateReservation = async (reservationId, updateData) => {
+export const updateReservation = async (reservationData, newDates) => {
   try {
-    const response = await api.put(`/auth/reservations/${reservationId}`, updateData);
+    console.log('🔄 Updating reservation with toggle pattern...', { reservationData, newDates });
+
+    // Handle missing roomIds
+    const { roomIds, reserveFrom, reserveTo, id } = reservationData;
+    const actualRoomIds = roomIds || (id ? [id] : []);
+
+    if (actualRoomIds.length === 0) {
+      throw new Error('No room IDs provided for update');
+    }
+
+    // First, cancel the existing reservation (set reserve: false)
+    const cancelPayload = {
+      roomIds: actualRoomIds,
+      reserve: false,
+      reserveFrom: reserveFrom,
+      reserveTo: reserveTo,
+      remarks: 'Updating reservation dates'
+    };
+
+    console.log('📤 Cancel existing reservation:', JSON.stringify(cancelPayload, null, 2));
+    await api.patch('/room/reserve/rooms', cancelPayload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${await getAuthToken()}`
+      }
+    });
+
+    // Then, create new reservation with updated dates (set reserve: true)
+    const updatePayload = {
+      roomIds: actualRoomIds,
+      reserve: true,
+      reserveFrom: newDates.reserveFrom,
+      reserveTo: newDates.reserveTo,
+      remarks: newDates.remarks || 'Reservation updated'
+    };
+
+    console.log('📤 Create updated reservation:', JSON.stringify(updatePayload, null, 2));
+    const response = await api.patch('/room/reserve/rooms', updatePayload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${await getAuthToken()}`
+      }
+    });
+
+    console.log('✅ Reservation updated successfully:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Update reservation error:', error);
+    console.error('❌ Update reservation error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
     throw error;
   }
 };
@@ -1439,9 +1783,45 @@ export const loginAdmin = async (email, password) => {
     const response = await api.post('/auth/login/admin', {
       email,
       password,
+    }, {
+      headers: { 'client-type': 'mobile' }
     });
 
-    const { access_token, refresh_token, admin } = response.data;
+    console.log('Admin login response:', response.data);
+
+    // The API response might have different structure - check various possibilities
+    const responseData = response.data;
+    const access_token = responseData.access_token || responseData.token || responseData.accessToken;
+    const refresh_token = responseData.refresh_token || responseData.refreshToken;
+
+    // Backend only returns tokens, no admin data in login response
+    // Need to fetch admin data separately
+    if (!access_token) {
+      throw new Error('Access token not received from server');
+    }
+
+    // Temporarily store the token to make the user-who call
+    await AsyncStorage.setItem('access_token', access_token);
+
+    // Fetch admin data using user-who endpoint
+    let admin;
+    try {
+      admin = await userWho();
+      console.log('Admin data fetched from user-who:', admin);
+    } catch (fetchErr) {
+      console.error('Error fetching admin data:', fetchErr);
+      // If we can't fetch admin data, at least create a minimal admin object
+      // Remove the temporary token as it might be invalid
+      await AsyncStorage.removeItem('access_token');
+
+      // Throw error to indicate login failure
+      throw new Error('Could not fetch admin data after login');
+    }
+
+    // Validate that we have essential admin data
+    if (!admin || !admin.id) {
+      throw new Error('Invalid admin data received from server');
+    }
 
     // Store in AsyncStorage using consistent keys
     await storeAuthData({ access_token, refresh_token }, {
@@ -1449,13 +1829,22 @@ export const loginAdmin = async (email, password) => {
       role: admin.role || 'ADMIN'
     });
 
+    // Ensure admin object has all required properties
+    const completeAdmin = {
+      id: admin.id,
+      name: admin.name || 'Admin',
+      email: admin.email || email,
+      role: admin.role || 'ADMIN',
+      ...admin
+    };
+
     // Also store admin specific keys for backward compatibility
     await AsyncStorage.setItem('adminToken', access_token);
-    await AsyncStorage.setItem('adminId', admin.id.toString());
-    await AsyncStorage.setItem('adminName', admin.name);
-    await AsyncStorage.setItem('adminEmail', admin.email);
+    await AsyncStorage.setItem('adminId', completeAdmin.id.toString());
+    await AsyncStorage.setItem('adminName', completeAdmin.name);
+    await AsyncStorage.setItem('adminEmail', completeAdmin.email);
 
-    return { admin, token: access_token };
+    return { admin: completeAdmin, token: access_token };
   } catch (error) {
     console.error('Login error:', error);
     throw error;
@@ -1647,4 +2036,3 @@ export const feedbackAPI = {
 
 
 export { base_url, api };
-

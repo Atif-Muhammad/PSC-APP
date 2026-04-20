@@ -90,22 +90,6 @@ export const roomService = {
   //   }
   // },
 
-  // Reserve rooms (Admin only)
-  reserveRooms: async (payload) => {
-    try {
-      const token = await getAuthToken();
-      const response = await api.patch('/room/reserve/rooms', payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error reserving rooms:', error);
-      throw error;
-    }
-  },
-
   // Get member available rooms for dates
   getMemberRoomsForDate: async (fromDate, toDate, roomType) => {
     try {

@@ -1728,6 +1728,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { paymentAPI, photoshootAPI, makeApiCall, getUserData, checkAuthStatus, getPhotoshootRule } from '../config/apis';
 import { useVoucher } from '../src/auth/contexts/VoucherContext';
 import HtmlRenderer from '../src/events/HtmlRenderer';
+import TermsAndConditions from '../src/components/TermsAndConditions';
 
 const shootsBooking = ({ route, navigation }) => {
   const { setVoucher } = useVoucher();
@@ -1742,6 +1743,28 @@ const shootsBooking = ({ route, navigation }) => {
   const [specialRequest, setSpecialRequest] = useState('');
   const [loading, setLoading] = useState(true);
   const [timeSlots, setTimeSlots] = useState([]);
+
+  // Validate guest name - only alphabets and max 50 characters
+  const handleGuestNameChange = (text) => {
+    // Remove any non-alphabetic characters (allow spaces for full names)
+    const sanitizedText = text.replace(/[^a-zA-Z\s]/g, '');
+    // Limit to 50 characters
+    const limitedText = sanitizedText.slice(0, 50);
+    setGuestName(limitedText);
+  };
+
+  // Validate guest contact - Pakistani format (03XXXXXXXXX or 92XXXXXXXXXX)
+  const handleGuestContactChange = (text) => {
+    // Remove any non-digit characters
+    const digitsOnly = text.replace(/[^0-9]/g, '');
+    // Limit to 12 digits (for 92 format) but prefer 11 for 03 format
+    const limitedText = digitsOnly.slice(0, 12);
+    setGuestContact(limitedText);
+  };
+
+  // Terms & Conditions state
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [showTermsError, setShowTermsError] = useState(false);
 
   // Time Picker states
   const [showPicker, setShowPicker] = useState(false);
@@ -1961,6 +1984,13 @@ const shootsBooking = ({ route, navigation }) => {
   };
 
   const handleGenerateInvoice = async () => {
+    // Terms & Conditions validation
+    if (!termsAgreed) {
+      setShowTermsError(true);
+      Alert.alert('Terms & Conditions', 'You must agree to the Terms & Conditions before booking.');
+      return;
+    }
+
     // Check authentication
     if (!isAuthenticated || !memberInfo || !memberInfo.membership_no) {
       Alert.alert(
@@ -2002,6 +2032,15 @@ const shootsBooking = ({ route, navigation }) => {
     if (pricingType === 'guest' && (!guestName || !guestContact)) {
       Alert.alert('Error', 'Please enter guest name and contact');
       return;
+    }
+
+    // Validate Pakistani mobile number format (03xxxxxxxxx or 92xxxxxxxxxx)
+    if (pricingType === 'guest') {
+      const phoneRegex = /^(03\d{9}|92\d{10})$/;
+      if (!phoneRegex.test(guestContact.trim())) {
+        Alert.alert('Invalid Mobile Number', 'Please enter a valid mobile number (e.g., 03001234567 or 923001234567).');
+        return;
+      }
     }
 
     setLoading(true);
@@ -2053,6 +2092,22 @@ const shootsBooking = ({ route, navigation }) => {
       if (result.success) {
         console.log('✅ Invoice generated successfully:', result.data);
 
+        // Serialize dateConfigurations to avoid React Navigation serialization warnings
+        // Convert Date objects to ISO strings for safe navigation param passing
+        const serializedDateConfigurations = {};
+        Object.keys(dateConfigurations).forEach(date => {
+          const timeValue = dateConfigurations[date].time;
+          serializedDateConfigurations[date] = {
+            time: timeValue instanceof Date ? timeValue.toISOString() : timeValue
+          };
+        });
+
+        console.log('📦 Serializing for navigation:', {
+          originalTime: dateConfigurations[sortedDates[0]]?.time,
+          serializedTime: serializedDateConfigurations[sortedDates[0]]?.time,
+          type: typeof serializedDateConfigurations[sortedDates[0]]?.time
+        });
+
         // Prepare navigation params
         const navigationParams = {
           invoiceData: result.data.Data || result.data,
@@ -2062,7 +2117,7 @@ const shootsBooking = ({ route, navigation }) => {
             totalPrice: totalPriceValue,
             photoshootDescription: photoshoot.description,
             selectedDates: sortedDates,
-            dateConfigurations: dateConfigurations
+            dateConfigurations: serializedDateConfigurations
           },
           photoshoot: photoshoot,
           memberInfo: memberInfo,
@@ -2291,8 +2346,9 @@ const shootsBooking = ({ route, navigation }) => {
                   style={styles.input}
                   placeholder="Enter guest full name"
                   value={guestName}
-                  onChangeText={setGuestName}
+                  onChangeText={handleGuestNameChange}
                   placeholderTextColor="#999"
+                  maxLength={50}
                 />
               </View>
               <View style={styles.formGroup}>
@@ -2301,9 +2357,10 @@ const shootsBooking = ({ route, navigation }) => {
                   style={styles.input}
                   placeholder="Enter guest phone number"
                   value={guestContact}
-                  onChangeText={setGuestContact}
+                  onChangeText={handleGuestContactChange}
                   keyboardType="phone-pad"
                   placeholderTextColor="#999"
+                  maxLength={12}
                 />
               </View>
             </View>
@@ -2439,7 +2496,7 @@ const shootsBooking = ({ route, navigation }) => {
               </View>
             </View>
 
-            {/* Login Required Message */}
+            {/* Login Required Message
             <View style={styles.loginRequiredCard}>
               <Icon name="lock" size={24} color="#b48a64" />
               <Text style={styles.loginRequiredTitle}>Login Required</Text>
@@ -2469,7 +2526,7 @@ const shootsBooking = ({ route, navigation }) => {
                   <Text style={styles.debugButtonText}>Debug Storage</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </View> */}
           </View>
         </ScrollView>
       </SafeAreaView >
@@ -2582,8 +2639,9 @@ const shootsBooking = ({ route, navigation }) => {
                 style={styles.input}
                 placeholder="Enter guest full name"
                 value={guestName}
-                onChangeText={setGuestName}
+                onChangeText={handleGuestNameChange}
                 placeholderTextColor="#999"
+                maxLength={50}
               />
             </View>
             <View style={styles.formGroup}>
@@ -2592,9 +2650,10 @@ const shootsBooking = ({ route, navigation }) => {
                 style={styles.input}
                 placeholder="Enter guest phone number"
                 value={guestContact}
-                onChangeText={setGuestContact}
+                onChangeText={handleGuestContactChange}
                 keyboardType="phone-pad"
                 placeholderTextColor="#999"
+                maxLength={12}
               />
             </View>
           </View>
@@ -2741,19 +2800,36 @@ const shootsBooking = ({ route, navigation }) => {
           </View>
         </View>
 
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.button, styles.invoiceButton]}
-            onPress={handleGenerateInvoice}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>{pricingType === 'guest' ? 'Book For Guest' : 'Confirm Booking'}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        {/* Terms & Conditions */}
+        <TermsAndConditions
+          bookingType="PHOTOSHOOT"
+          agreed={termsAgreed}
+          onToggle={() => {
+            setTermsAgreed(!termsAgreed);
+            if (showTermsError) setShowTermsError(false);
+          }}
+          showError={showTermsError}
+        />
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[
+            styles.submitButton,
+            loading && styles.submitButtonDisabled
+          ]}
+          onPress={handleGenerateInvoice}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>
+              {pricingType === 'guest' ? 'Book For Guest' : 'Confirm Booking'}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -3149,7 +3225,6 @@ const styles = StyleSheet.create({
   bookingTypeCard: {
     backgroundColor: '#fff',
     marginHorizontal: 15,
-    marginBottom: 15,
     borderRadius: 12,
     padding: 15,
     shadowColor: '#000',
@@ -3157,6 +3232,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    marginBottom: 12,
   },
   bookingTypeTitle: {
     fontSize: 16,
@@ -3373,6 +3449,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     fontWeight: '500',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#b48a64',
+    marginHorizontal: 15,
+    paddingVertical: 18,
+    borderRadius: 12,
+    shadowColor: '#b48a64',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#b4896449',
+    shadowColor: 'transparent',
+  },
+  submitButtonText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 

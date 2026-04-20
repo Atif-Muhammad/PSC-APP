@@ -14,11 +14,15 @@ import {
     Platform,
     FlatList,
     RefreshControl,
+    Modal,
+    Dimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Path } from 'react-native-svg';
 import { Dropdown } from 'react-native-element-dropdown';
 import Icon from 'react-native-vector-icons/Ionicons';
 import IconAD from 'react-native-vector-icons/AntDesign';
-import { feedbackAPI } from '../config/apis';
+import { feedbackAPI, checkAuthStatus } from '../config/apis';
 
 const THEME_COLOR = '#b48a64'; // Gold
 const SECONDARY_COLOR = '#1A1A1A'; // Deep Black
@@ -29,10 +33,11 @@ const FeedbackScreen = ({ navigation }) => {
     const [subCategories, setSubCategories] = useState([]);
     const [filteredSubCategories, setFilteredSubCategories] = useState([]);
     const [feedbacks, setFeedbacks] = useState([]);
-    const [isAdding, setIsAdding] = useState(false);
+    const [isAdding, setIsAdding] = useState(true); // Default to New Feedback form until we confirm user has history
     const [refreshing, setRefreshing] = useState(false);
+    const [showWalkthrough, setShowWalkthrough] = useState(false);
 
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
 
     const [form, setForm] = useState({
@@ -46,22 +51,62 @@ const FeedbackScreen = ({ navigation }) => {
     useEffect(() => {
         fetchInitialData();
         fetchFeedbacks();
-    }, []);
+
+        // Add focus listener to show walkthrough every time user visits the screen
+        const unsubscribe = navigation.addListener('focus', () => {
+            setShowWalkthrough(true);
+        });
+
+        return unsubscribe;
+    }, [navigation]);
+
+    const completeWalkthrough = () => {
+        setShowWalkthrough(false);
+    };
 
     const fetchInitialData = async () => {
         try {
             setLoading(true);
-            const [cats, subCats] = await Promise.all([
+            const [catsRaw, subCatsRaw] = await Promise.all([
                 feedbackAPI.getCategories(),
                 feedbackAPI.getSubCategories(),
             ]);
 
-            setCategories(cats.map(c => ({ label: c.name, value: c.id })));
-            setSubCategories(subCats.map(s => ({
-                label: s.name,
-                value: s.id,
-                categoryId: s.categoryId // Assumption: subcategories might be linked
-            })));
+            // Defensively unwrap: API might return array directly, or nested in .data / .Data / .categories etc.
+            const unwrap = (raw) => {
+                if (Array.isArray(raw)) return raw;
+                if (raw && Array.isArray(raw.data)) return raw.data;
+                if (raw && Array.isArray(raw.Data)) return raw.Data;
+                if (raw && Array.isArray(raw.categories)) return raw.categories;
+                if (raw && Array.isArray(raw.subCategories)) return raw.subCategories;
+                if (raw && Array.isArray(raw.subcategories)) return raw.subcategories;
+                if (raw && Array.isArray(raw.result)) return raw.result;
+                if (raw && Array.isArray(raw.rows)) return raw.rows;
+                return [];
+            };
+
+            const cats = unwrap(catsRaw);
+            const subCats = unwrap(subCatsRaw);
+
+            console.log('📂 Categories raw:', JSON.stringify(catsRaw));
+            console.log('📂 SubCategories raw:', JSON.stringify(subCatsRaw));
+            console.log('✅ Parsed cats count:', cats.length, '| subCats count:', subCats.length);
+
+            // Support multiple field names for id and name
+            const mapCat = (c) => ({
+                label: c.name || c.Name || c.categoryName || c.title || '(Unnamed)',
+                value: c.id || c.Id || c.categoryId || c.Sno || c._id,
+            });
+
+            const mapSubCat = (s) => ({
+                label: s.name || s.Name || s.subCategoryName || s.title || '(Unnamed)',
+                value: s.id || s.Id || s.subCategoryId || s.Sno || s._id,
+                // Try all possible FK field names that link subcategory to a category
+                categoryId: s.categoryId || s.CategoryId || s.category_id || s.parentId || s.parent_id || null,
+            });
+
+            setCategories(cats.map(mapCat));
+            setSubCategories(subCats.map(mapSubCat));
         } catch (error) {
             console.error('Fetch feedback data error:', error);
             Alert.alert('Error', 'Failed to load categories. Please try again.');
@@ -73,8 +118,68 @@ const FeedbackScreen = ({ navigation }) => {
     const fetchFeedbacks = async () => {
         try {
             const data = await feedbackAPI.getFeedbacks();
-            console.log('Feedback data structure:', JSON.stringify(data, null, 2));
-            setFeedbacks(data);
+
+            // Get current user to filter feedback
+            const authStatus = await checkAuthStatus();
+
+            if (authStatus && authStatus.isAuthenticated && authStatus.userData) {
+                const currentUser = authStatus.userData;
+                const userId = currentUser.Sno || currentUser.id || currentUser.userId;
+                const userMemNo = currentUser.membership_no || currentUser.Membership_No || currentUser.membershipNumber || currentUser.memberId;
+
+                // Filter feedbacks strictly for the current user
+                const userFeedbacks = data.filter(item => {
+                    // Collect all possible ID and membership number variations from the feedback item
+                    const itemIds = [
+                        item.userId, item.user_id, item.memberId, item.member_id, item.Sno, item.sno, item.MemberSno,
+                        item.user?.id, item.user?.Sno, item.user?.sno, item.user?.MemberSno,
+                        item.member?.id, item.member?.Sno, item.member?.sno, item.member?.MemberSno
+                    ].map(id => id ? String(id).trim() : null).filter(Boolean);
+
+                    const itemMemNos = [
+                        item.membership_no, item.membershipNo, item.Membership_No,
+                        item.user?.membership_no, item.user?.Membership_No, item.user?.membershipNo,
+                        item.member?.membership_no, item.member?.Membership_No, item.member?.membershipNo
+                    ].map(no => no ? String(no).trim().toLowerCase() : null).filter(Boolean);
+
+                    const currentUserId = userId ? String(userId).trim() : null;
+                    const currentUserMemNo = userMemNo ? String(userMemNo).trim().toLowerCase() : null;
+
+                    // Match by ID
+                    if (currentUserId && itemIds.includes(currentUserId)) return true;
+                    // Match by Membership No
+                    if (currentUserMemNo && itemMemNos.includes(currentUserMemNo)) return true;
+
+                    return false;
+                });
+
+                if (userFeedbacks.length === 0 && data.length > 0) {
+                    // Let's examine the first element of 'data' to see why our filter didn't match
+                    const sample = data[0];
+                    const keys = Object.keys(sample).join(', ');
+                    const userKeys = typeof sample.user === 'object' && sample.user ? Object.keys(sample.user).join(', ') : 'no user object';
+                    const memberKeys = typeof sample.member === 'object' && sample.member ? Object.keys(sample.member).join(', ') : 'no member object';
+
+                    console.warn('Debug - Filtered out all items. Expected userId:', currentUserId, 'memNo:', currentUserMemNo);
+                    console.warn('Debug - Data[0] sample keys:', keys);
+
+                    // Show a quick alert on screen for debugging to see which fields are returned
+                    Alert.alert(
+                        'Debug Info',
+                        `Filter cleared all items. Your ID: ${currentUserId}, Mem: ${currentUserMemNo}.\n\n` +
+                        `Item keys: ${keys}\n` +
+                        `Item user keys: ${userKeys}\n` +
+                        `Item member keys: ${memberKeys}`
+                    );
+                }
+
+                setFeedbacks(userFeedbacks);
+                // Set default view: New Feedback if no history, otherwise History
+                setIsAdding(userFeedbacks.length === 0);
+            } else {
+                setFeedbacks([]); // Not authenticated or user unidentifiable
+                setIsAdding(true); // Default to form if we can't get history
+            }
         } catch (error) {
             console.error('Fetch feedbacks error:', error);
             Alert.alert('Error', 'Failed to load feedback history. Please try again.');
@@ -107,11 +212,11 @@ const FeedbackScreen = ({ navigation }) => {
                 bgColor = '#F3F4F6'; // Gray background
                 textColor = '#374151'; // Gray text
         }
-        
+
         return (
-            <View style={[styles.badge, { backgroundColor: bgColor }]}> 
-                <Text style={[styles.badgeText, { color: textColor }]}> 
-                    {status || 'Unknown'} 
+            <View style={[styles.badge, { backgroundColor: bgColor }]}>
+                <Text style={[styles.badgeText, { color: textColor }]}>
+                    {status || 'Unknown'}
                 </Text>
             </View>
         );
@@ -138,14 +243,8 @@ const FeedbackScreen = ({ navigation }) => {
                         <Text style={styles.historyTitle}>Feedback History</Text>
                         <Text style={styles.historySubtitle}>View your submitted feedback and admin responses</Text>
                     </View>
-                    <TouchableOpacity
-                        style={styles.fabButton}
-                        onPress={() => setIsAdding(true)}
-                    >
-                        <Icon name="add" size={24} color="#FFF" />
-                    </TouchableOpacity>
                 </View>
-                
+
                 {feedbacks.length === 0 ? (
                     <View style={styles.emptyContainer}>
                         <View style={styles.emptyIconContainer}>
@@ -179,19 +278,19 @@ const FeedbackScreen = ({ navigation }) => {
                                     </View>
                                     {getStatusBadge(item.status)}
                                 </View>
-                                
+
                                 <Text style={styles.feedbackSubject}>{typeof item.subject === 'string' ? item.subject : 'No subject'}</Text>
-                                
+
                                 <Text style={styles.feedbackMessage} numberOfLines={3}>
                                     {typeof item.message === 'string' ? item.message : 'No message'}
                                 </Text>
-                                
+
                                 <View style={styles.categoryContainer}>
                                     <Icon name="pricetags-outline" size={14} color="#666" />
                                     <Text style={styles.feedbackCategory}>
-                                        {typeof item.category === 'string' ? item.category : 
-                                         typeof item.category?.name === 'string' ? item.category.name : 
-                                         'N/A'}
+                                        {typeof item.category === 'string' ? item.category :
+                                            typeof item.category?.name === 'string' ? item.category.name :
+                                                'N/A'}
                                     </Text>
                                     {(typeof item.subCategory === 'string' || typeof item.subCategory?.name === 'string') && (
                                         <Text style={styles.feedbackSubCategory}>
@@ -199,38 +298,112 @@ const FeedbackScreen = ({ navigation }) => {
                                         </Text>
                                     )}
                                 </View>
-                                
+
                                 {/* Admin Remarks Section */}
-                                {((item.remarks && (typeof item.remarks === 'string' || Array.isArray(item.remarks))) || 
-                                  (item.adminRemarks && typeof item.adminRemarks === 'string') || 
-                                  (item.remark && typeof item.remark === 'string')) && (
-                                    <View style={styles.remarksContainer}>
-                                        <View style={styles.remarksHeader}>
-                                            <Icon name="information-circle" size={16} color="#4A90E2" />
-                                            <Text style={styles.remarksTitle}>Admin Response</Text>
+                                {(() => {
+                                    // Collect all remarks into a normalized array
+                                    let remarksList = [];
+
+                                    if (Array.isArray(item.remarks)) {
+                                        remarksList = item.remarks.map(r => ({
+                                            text: typeof r === 'string' ? r : (r.remark || r.text || r.message || r.description || ''),
+                                            date: r.createdAt || r.created_at || r.date || null,
+                                            adminName: r.adminName || r.admin_name || r.name || r.createdBy || null,
+                                            status: r.status || null,
+                                        })).filter(r => r.text);
+                                    } else {
+                                        const remarkText =
+                                            (typeof item.remarks === 'string' && item.remarks) ||
+                                            (typeof item.adminRemarks === 'string' && item.adminRemarks) ||
+                                            (typeof item.remark === 'string' && item.remark) ||
+                                            '';
+                                        if (remarkText) {
+                                            remarksList = [{
+                                                text: remarkText,
+                                                date: item.updatedAt || item.updated_at || null,
+                                                adminName: item.adminName || item.admin_name || null,
+                                                status: item.status || null,
+                                            }];
+                                        }
+                                    }
+
+                                    if (remarksList.length === 0) return null;
+
+                                    // Derive accent color from the PARENT feedback status
+                                    const parentStatus = item.status?.toUpperCase();
+                                    const statusColor =
+                                        parentStatus === 'COMPLETED' ? '#10B981' :
+                                            parentStatus === 'IN_PROCESS' || parentStatus === 'IN PROGRESS' ? '#3B82F6' :
+                                                '#F59E0B'; // pending / default = amber
+
+                                    return (
+                                        <View style={styles.adminReplyWrapper}>
+                                            {/* Section Header */}
+                                            <View style={styles.adminReplyHeader}>
+                                                <Icon name="chatbubble-ellipses" size={16} color={statusColor} />
+                                                <Text style={styles.adminReplySectionTitle}>Admin Response</Text>
+                                                <View style={[styles.adminReplyCount, { backgroundColor: statusColor }]}>
+                                                    <Text style={styles.adminReplyCountText}>{remarksList.length}</Text>
+                                                </View>
+                                            </View>
+
+                                            {remarksList.map((remark, idx) => (
+                                                <View key={idx} style={[styles.adminReplyCard, { borderLeftColor: statusColor }]}>
+                                                    {/* Reply Meta Row: Status + Date */}
+                                                    <View style={styles.adminReplyMeta}>
+                                                        {remark.status ? (
+                                                            <View style={[styles.adminStatusPill, {
+                                                                backgroundColor:
+                                                                    remark.status?.toUpperCase() === 'COMPLETED' ? '#ECFDF5' :
+                                                                        remark.status?.toUpperCase() === 'IN_PROCESS' || remark.status?.toUpperCase() === 'IN PROGRESS' ? '#EFF6FF' :
+                                                                            '#FFFBEB'
+                                                            }]}>
+                                                                <View style={[styles.adminStatusDot, {
+                                                                    backgroundColor:
+                                                                        remark.status?.toUpperCase() === 'COMPLETED' ? '#10B981' :
+                                                                            remark.status?.toUpperCase() === 'IN_PROCESS' || remark.status?.toUpperCase() === 'IN PROGRESS' ? '#3B82F6' :
+                                                                                '#F59E0B'
+                                                                }]} />
+                                                                <Text style={[styles.adminStatusText, {
+                                                                    color:
+                                                                        remark.status?.toUpperCase() === 'COMPLETED' ? '#059669' :
+                                                                            remark.status?.toUpperCase() === 'IN_PROCESS' || remark.status?.toUpperCase() === 'IN PROGRESS' ? '#2563EB' :
+                                                                                '#92400E'
+                                                                }]}>{remark.status}</Text>
+                                                            </View>
+                                                        ) : null}
+
+                                                        {remark.date ? (
+                                                            <View style={styles.adminReplyDateRow}>
+                                                                <Icon name="time-outline" size={12} color="#999" />
+                                                                <Text style={styles.adminReplyDate}>
+                                                                    {formatDate(remark.date)}  {new Date(remark.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                                                </Text>
+                                                            </View>
+                                                        ) : null}
+                                                    </View>
+
+                                                    {/* Reply Text */}
+                                                    <Text style={styles.adminReplyText}>{remark.text}</Text>
+
+                                                    {/* Admin Name Footer */}
+                                                    {/* {remark.adminName ? (
+                                                        <View style={styles.adminNameRow}>
+                                                            <Icon name="person-circle-outline" size={14} color="#b48a64" />
+                                                            <Text style={styles.adminReplyAuthor}>{remark.adminName}</Text>
+                                                        </View>
+                                                    ) : null} */}
+                                                </View>
+                                            ))}
                                         </View>
-                                        <Text style={styles.remarksText}>
-                                            {typeof item.remarks === 'string' ? item.remarks : 
-                                             typeof item.adminRemarks === 'string' ? item.adminRemarks : 
-                                             typeof item.remark === 'string' ? item.remark : 
-                                             Array.isArray(item.remarks) ? 
-                                               item.remarks.map(r => 
-                                                 typeof r === 'string' ? r : 
-                                                 r.remark || r.text || r.message || JSON.stringify(r)
-                                               ).filter(Boolean).join('\n\n') : 
-                                             ''}
-                                        </Text>
-                                        {item.adminName && typeof item.adminName === 'string' && (
-                                            <Text style={styles.adminName}>— {item.adminName}</Text>
-                                        )}
-                                    </View>
-                                )}
+                                    );
+                                })()}
                             </View>
                         )}
                         refreshControl={
-                            <RefreshControl 
-                                refreshing={refreshing} 
-                                onRefresh={onRefresh} 
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={onRefresh}
                                 colors={[THEME_COLOR]}
                                 tintColor={THEME_COLOR}
                             />
@@ -283,7 +456,7 @@ const FeedbackScreen = ({ navigation }) => {
 
             // Refresh the feedback list after successful submission
             await fetchFeedbacks();
-            
+
             // Reset the form
             setForm({
                 subject: '',
@@ -292,7 +465,7 @@ const FeedbackScreen = ({ navigation }) => {
                 otherSubCategory: '',
                 message: '',
             });
-            
+
             Alert.alert(
                 'Success',
                 'Thank you for your feedback! We will review it shortly.',
@@ -339,7 +512,24 @@ const FeedbackScreen = ({ navigation }) => {
                         <Text style={styles.headerTitle}>{isAdding ? 'New Feedback' : 'Feedback'}</Text>
                         <Text style={styles.headerSubtitle}>{isAdding ? 'Submit your feedback' : 'View history & submit feedback'}</Text>
                     </View>
-                    <View style={{ width: 40 }} />
+                    {!isAdding ? (
+                        <TouchableOpacity
+                            style={{
+
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+
+                            }}
+                            onPress={() => setIsAdding(true)}
+                        >
+                            <Icon name="add" size={28} color="black" style={{ fontWeight: '1000' }} />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 40 }} />
+                    )}
                 </View>
             </ImageBackground>
 
@@ -466,6 +656,105 @@ const FeedbackScreen = ({ navigation }) => {
                     renderFeedbackHistory()
                 )}
             </KeyboardAvoidingView>
+
+            {/* App Walkthrough Overlay */}
+            <Modal
+                visible={showWalkthrough && !isAdding}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={completeWalkthrough}
+            >
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }}>
+                    {/* Fake Highlighted Button overlaying the real one */}
+                    <View style={{
+                        position: 'absolute',
+                        top: Platform.OS === 'ios' ? 55 : 45, // Approximated position for the add button
+                        right: 20,
+                        backgroundColor: '#b48a64',
+                        width: 44, // Slightly larger to highlight
+                        height: 44,
+                        borderRadius: 22,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        shadowColor: '#FFF',
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 15,
+                        elevation: 10,
+                        borderWidth: 2,
+                        borderColor: '#FFF',
+                    }}>
+                        <Icon name="add" size={28} color="#FFF" style={{ fontWeight: 'bold' }} />
+                    </View>
+
+                    {/* SVG Dashed Arrow pointing from Tooltip up to the Button */}
+                    <View style={{
+                        position: 'absolute',
+                        top: Platform.OS === 'ios' ? 100 : 90,
+                        right: 42,
+                        width: 60,
+                        height: 70,
+                    }}>
+                        <Svg height="100%" width="100%" viewBox="0 0 60 70">
+                            {/* Curved dashed line from bottom-left (tooltip) to top-right (button) */}
+                            <Path
+                                d="M10,70 Q40,50 50,15"
+                                fill="none"
+                                stroke="#FFF"
+                                strokeWidth="2.5"
+                                strokeDasharray="6,4"
+                            />
+                            {/* Arrow head pointing at the button */}
+                            <Path
+                                d="M38,20 L50,15 L53,28"
+                                fill="none"
+                                stroke="#FFF"
+                                strokeWidth="2.5"
+                            />
+                        </Svg>
+                    </View>
+
+                    {/* Tooltip Box styled like the inspiration but in Gold/Light Gold theme */}
+                    <View style={{
+                        position: 'absolute',
+                        top: Platform.OS === 'ios' ? 170 : 160,
+                        right: 20,
+                        backgroundColor: '#FDECDA', // Very light gold/orange tint
+                        padding: 20,
+                        borderRadius: 12,
+                        width: Dimensions.get('window').width * 0.7,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 5,
+                        elevation: 8,
+                    }}>
+                        <Text style={{
+                            color: '#333',
+                            fontSize: 16,
+                            fontWeight: '600',
+                            textAlign: 'center',
+                            lineHeight: 24,
+                            marginBottom: 15,
+                        }}>
+                            Tap here to submit a new feedback or complaint to the administration
+                        </Text>
+
+                        <TouchableOpacity
+                            style={{
+                                backgroundColor: '#b48a64',
+                                paddingVertical: 10,
+                                borderRadius: 8,
+                                alignItems: 'center',
+                                width: '100%',
+                            }}
+                            onPress={completeWalkthrough}
+                        >
+                            <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>Got it!</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -815,6 +1104,100 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginTop: 8,
         textAlign: 'right',
+    },
+
+    // ── Admin Reply Card ──────────────────────────────────
+    adminReplyWrapper: {
+        marginTop: 14,
+        borderTopWidth: 1,
+        borderTopColor: '#EEF0F4',
+        paddingTop: 12,
+    },
+    adminReplyHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    adminReplySectionTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#2D3748',
+        marginLeft: 6,
+        flex: 1,
+    },
+    adminReplyCount: {
+        backgroundColor: '#4A90E2',
+        borderRadius: 10,
+        paddingHorizontal: 7,
+        paddingVertical: 2,
+    },
+    adminReplyCountText: {
+        color: '#FFF',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    adminReplyCard: {
+        backgroundColor: '#F7FAFF',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: '#DBEAFE',
+        borderLeftWidth: 3,
+        borderLeftColor: '#4A90E2',
+    },
+    adminReplyMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 10,
+    },
+    adminStatusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 20,
+    },
+    adminStatusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        marginRight: 5,
+    },
+    adminStatusText: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+        textTransform: 'capitalize',
+    },
+    adminReplyDateRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    adminReplyDate: {
+        fontSize: 11,
+        color: '#999',
+        marginLeft: 4,
+    },
+    adminReplyText: {
+        fontSize: 14,
+        color: '#374151',
+        lineHeight: 21,
+        marginBottom: 8,
+    },
+    adminNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        marginTop: 4,
+    },
+    adminReplyAuthor: {
+        fontSize: 12,
+        color: '#b48a64',
+        fontWeight: '700',
+        marginLeft: 5,
     },
 });
 

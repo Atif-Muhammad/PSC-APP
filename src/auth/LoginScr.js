@@ -15,10 +15,12 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode'; // Use library instead of custom decoder
-import { storeAuthData, getBaseUrl, userWho, registerFcmToken, removeAuthData } from '../../config/apis';
+import { storeAuthData, getBaseUrl, userWho, registerFcmToken, removeAuthData, loginAdmin } from '../../config/apis';
 import messaging from '@react-native-firebase/messaging';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './contexts/AuthContext';
 
 const background = require('../../assets/bg.jpeg');
@@ -330,6 +332,20 @@ const LoginScr = ({ navigation }) => {
 
     setLoading(true);
     try {
+      console.log('🔐 Admin login attempt:', { email });
+
+      // Use the loginAdmin function from apis.js
+      const result = await loginAdmin(email.trim(), password.trim());
+
+      console.log('✅ Admin login response:', result);
+
+      const { admin, token } = result;
+      
+      // Validate admin data exists
+      if (!admin) {
+        throw new Error('Admin login failed: Invalid response from server');
+      }
+
       // Get FCM Token for Single Device Session
       let fcmToken = null;
       try {
@@ -337,66 +353,29 @@ const LoginScr = ({ navigation }) => {
           await messaging().registerDeviceForRemoteMessages();
         }
         fcmToken = await messaging().getToken();
-      } catch (fcmErr) {
-        console.warn('⚠️ Could not get FCM token for admin login:', fcmErr.message);
-      }
-
-      console.log('🔐 Admin login attempt:', { email, fcmToken });
-
-      const response = await axios.post(
-        `${BASE_URL}/login/admin`,
-        {
-          email: email.trim(),
-          password: password.trim(),
-          fcmToken: fcmToken, // Pass fcmToken here
-        },
-        {
-          headers: { 'client-type': 'mobile' },
-          timeout: 10000
-        }
-      );
-
-      console.log('✅ Admin login response:', response.data);
-
-      const { access_token, refresh_token } = response.data;
-
-      if (!access_token || !refresh_token) {
-        throw new Error('No tokens received from server');
-      }
-
-      // Decode the JWT token
-      let decodedToken;
-      try {
-        decodedToken = jwtDecode(access_token);
-        console.log('🔓 Decoded JWT token (Admin):', decodedToken);
-      } catch (decodeError) {
-        console.error('Error decoding JWT:', decodeError);
-        decodedToken = null;
-      }
-
-      const userInfo = {
-        role: decodedToken?.role || 'ADMIN',
-        name: decodedToken?.name || 'Admin',
-        email: decodedToken?.email || email.trim(),
-        ...(decodedToken?.id && { id: decodedToken.id })
-      };
-
-      await storeAuthData({ access_token, refresh_token }, userInfo);
-
-      // Always try to get and send current FCM token
-      try {
-        const currentToken = await messaging().getToken();
-        if (currentToken) {
-          console.log('🔑 Current Admin FCM Token:', currentToken);
-          await registerFcmToken(userInfo.id, currentToken);
+        
+        // Register FCM token if we have both admin ID and token
+        if (admin && admin.id && fcmToken) {
+          console.log('🔑 Current Admin FCM Token:', fcmToken);
+          await registerFcmToken(admin.id, fcmToken);
           console.log('✅ Admin FCM token updated on backend');
         }
       } catch (fcmErr) {
-        console.error('❌ Error handling FCM token during admin login:', fcmErr);
+        console.warn('⚠️ Could not get or register FCM token for admin login:', fcmErr.message);
       }
 
       // Update global auth state
-      login(userInfo, access_token, refresh_token);
+      // Since loginAdmin already stores tokens, we just need to call login with the admin data
+      // and the tokens that were already stored
+      const storedAccessToken = await AsyncStorage.getItem('access_token');
+      const storedRefreshToken = await AsyncStorage.getItem('refresh_token');
+      
+      // Double-check that admin data exists before passing to login
+      if (!admin) {
+        throw new Error('Admin login failed: Invalid admin data after login');
+      }
+      
+      login(admin, storedAccessToken, storedRefreshToken);
 
       Alert.alert('Success', 'Admin login successful!');
       console.log('✅ Admin tokens saved and global auth updated');
@@ -412,6 +391,8 @@ const LoginScr = ({ navigation }) => {
         errorMessage = 'Invalid email or password.';
       } else if (err.response?.status === 404) {
         errorMessage = 'Admin account not found.';
+      } else if (err.response?.status === 400) {
+        errorMessage = err.response?.data?.message || 'Bad request. Please check your credentials.';
       } else if (err.code === 'ECONNABORTED') {
         errorMessage = 'Request timeout. Please try again.';
       } else if (!err.response) {
@@ -480,7 +461,7 @@ const LoginScr = ({ navigation }) => {
                   {!otpSent ? (
                     <>
                       <View style={styles.inputContainer}>
-                        <Text style={styles.icon}>🪪</Text>
+                        <Icon name="badge-account-horizontal" size={20} color="black" style={styles.icon} />
                         <TextInput
                           placeholder="Enter Member ID"
                           placeholderTextColor="rgba(0,0,0,0.5)"
@@ -509,7 +490,7 @@ const LoginScr = ({ navigation }) => {
                   ) : (
                     <>
                       <View style={styles.inputContainer}>
-                        <Text style={styles.icon}>📧</Text>
+                        <Icon name="email-outline" size={20} color="black" style={styles.icon} />
                         <TextInput
                           placeholder="Enter OTP"
                           placeholderTextColor="rgba(0,0,0,0.5)"
@@ -552,7 +533,7 @@ const LoginScr = ({ navigation }) => {
               ) : (
                 <>
                   <View style={styles.inputContainer}>
-                    <Text style={styles.icon}>📧</Text>
+                    <Icon name="email-outline" size={20} color="black" style={styles.icon} />
                     <TextInput
                       placeholder="Enter Admin Email"
                       placeholderTextColor="rgba(0,0,0,0.5)"
@@ -567,7 +548,7 @@ const LoginScr = ({ navigation }) => {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <Text style={styles.icon}>🔒</Text>
+                    <Icon name="lock-outline" size={20} color="black" style={styles.icon} />
                     <TextInput
                       placeholder="Enter Password"
                       placeholderTextColor="rgba(0,0,0,0.5)"
@@ -610,7 +591,7 @@ const LoginScr = ({ navigation }) => {
                 onPress={() => navigation.navigate('about')}
                 activeOpacity={0.7}
               >
-                <Text style={styles.aboutIcon}>ℹ️</Text>
+                <Icon name="information-outline" size={20} color="white" style={styles.aboutIcon} />
                 <Text style={styles.aboutText}>About PSC</Text>
               </TouchableOpacity>
             </View>
