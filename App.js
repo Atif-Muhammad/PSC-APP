@@ -11,7 +11,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './hooks/useQueries';
 
 // Deep Linking Configuration
 import linking from './config/linking';
@@ -24,9 +25,6 @@ import {
   handleNotificationNavigation,
   extractNavigationFromNotification,
 } from './services/notificationHandler';
-
-// Create QueryClient instance
-const queryClient = new QueryClient();
 
 // Import screens
 import home from './src/rooms/home';
